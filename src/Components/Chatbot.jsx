@@ -18,7 +18,6 @@ import './Chatbot.css';
 //
 // =====================================================
 
-
 const CHATBOT_URL = '/api/chat';
 
 
