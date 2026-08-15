@@ -8,64 +8,72 @@ import './Chatbot.css';
 
 
 // =====================================================
-// VERCEL CHATBOT API
-// =====================================================
-//
-// IMPORTANT:
-// Firebase Cloud Functions are NOT used anymore.
-// The request goes to:
-// https://coffeeebrewwebsite.vercel.app/api/chat
-//
+// VERCEL API
 // =====================================================
 
 const CHATBOT_URL = '/api/chat';
 
 
 // =====================================================
-// Chatbot Component
+// CHATBOT COMPONENT
 // =====================================================
 
 const Chatbot = () => {
-  const [isOpen, setIsOpen] = useState(false);
 
-  const [messages, setMessages] = useState([
-    {
-      role: 'bot',
-      text:
-        "Hey! I'm the Brew Haven barista bot ☕ — ask me about the menu, hours, or anything coffee related.",
-    },
-  ]);
+  const [isOpen, setIsOpen] =
+    useState(false);
 
-  const [input, setInput] = useState('');
+  const [messages, setMessages] =
+    useState([
+      {
+        role: 'bot',
 
-  const [isLoading, setIsLoading] = useState(false);
+        text:
+          "Hey! I'm the Brew Haven barista bot ☕ — ask me about the menu, hours, or anything coffee related.",
+      },
+    ]);
 
-  const messagesEndRef = useRef(null);
+  const [input, setInput] =
+    useState('');
+
+  const [isLoading, setIsLoading] =
+    useState(false);
+
+  const messagesEndRef =
+    useRef(null);
 
 
   // ===================================================
-  // Auto Scroll
+  // AUTO SCROLL
   // ===================================================
 
   useEffect(() => {
+
     messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
     });
+
   }, [messages, isOpen]);
 
 
   // ===================================================
-  // Send Message
+  // SEND MESSAGE
   // ===================================================
 
   const sendMessage = async () => {
-    const trimmed = input.trim();
+
+    const trimmed =
+      input.trim();
+
 
     // -----------------------------------------------
     // Prevent empty message
     // -----------------------------------------------
 
-    if (!trimmed || isLoading) {
+    if (
+      !trimmed ||
+      isLoading
+    ) {
       return;
     }
 
@@ -74,13 +82,16 @@ const Chatbot = () => {
     // Add user message
     // -----------------------------------------------
 
-    setMessages((previousMessages) => [
-      ...previousMessages,
-      {
-        role: 'user',
-        text: trimmed,
-      },
-    ]);
+    setMessages(
+      (previousMessages) => [
+        ...previousMessages,
+
+        {
+          role: 'user',
+          text: trimmed,
+        },
+      ]
+    );
 
 
     // -----------------------------------------------
@@ -91,13 +102,14 @@ const Chatbot = () => {
 
 
     // -----------------------------------------------
-    // Start loading
+    // Loading
     // -----------------------------------------------
 
     setIsLoading(true);
 
 
     try {
+
       console.log(
         'Sending message to Vercel API:',
         trimmed
@@ -105,23 +117,25 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Call Vercel API
+      // API REQUEST
       // =================================================
 
-      const response = await fetch(
-        CHATBOT_URL,
-        {
-          method: 'POST',
+      const response =
+        await fetch(
+          CHATBOT_URL,
+          {
+            method: 'POST',
 
-          headers: {
-            'Content-Type': 'application/json',
-          },
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
 
-          body: JSON.stringify({
-            message: trimmed,
-          }),
-        }
-      );
+            body: JSON.stringify({
+              message: trimmed,
+            }),
+          }
+        );
 
 
       console.log(
@@ -131,17 +145,21 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Read Response
+      // READ RESPONSE
       // =================================================
 
       let data;
 
       try {
-        data = await response.json();
-      } catch (jsonError) {
+
+        data =
+          await response.json();
+
+      } catch (error) {
+
         console.error(
-          'Failed to parse API response:',
-          jsonError
+          'Response JSON error:',
+          error
         );
 
         throw new Error(
@@ -157,10 +175,11 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Server Error
+      // SERVER ERROR
       // =================================================
 
       if (!response.ok) {
+
         throw new Error(
           data?.error ||
           'Chatbot server returned an error.'
@@ -169,7 +188,7 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Get Bot Reply
+      // GET REPLY
       // =================================================
 
       const reply =
@@ -178,22 +197,22 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Add Bot Response
+      // ADD BOT MESSAGE
       // =================================================
 
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        {
-          role: 'bot',
-          text: reply,
-        },
-      ]);
+      setMessages(
+        (previousMessages) => [
+          ...previousMessages,
+
+          {
+            role: 'bot',
+            text: reply,
+          },
+        ]
+      );
+
 
     } catch (error) {
-
-      // =================================================
-      // Log Error
-      // =================================================
 
       console.error(
         'Chatbot error:',
@@ -202,7 +221,7 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Default Error
+      // ERROR MESSAGE
       // =================================================
 
       let errorMessage =
@@ -210,88 +229,108 @@ const Chatbot = () => {
 
 
       const errorText =
-        error?.message?.toLowerCase() || '';
+        error?.message?.toLowerCase() ||
+        '';
 
 
       // =================================================
-      // Network Error
+      // NETWORK ERROR
       // =================================================
 
       if (
-        errorText.includes('failed to fetch') ||
-        errorText.includes('network')
+        errorText.includes(
+          'failed to fetch'
+        ) ||
+        errorText.includes(
+          'network'
+        )
       ) {
+
         errorMessage =
           'Unable to connect to the chatbot server. Please try again.';
       }
 
 
       // =================================================
-      // Gemini Error
+      // GROQ API KEY ERROR
       // =================================================
 
       else if (
-        errorText.includes('gemini')
+        errorText.includes(
+          'groq api key'
+        ) ||
+        errorText.includes(
+          'not configured'
+        )
       ) {
-        errorMessage =
-          'The AI service is currently unavailable. Please try again later.';
-      }
 
-
-      // =================================================
-      // API Key Error
-      // =================================================
-
-      else if (
-        errorText.includes('api key') ||
-        errorText.includes('not configured')
-      ) {
         errorMessage =
           'The chatbot API is not configured correctly on Vercel.';
       }
 
 
       // =================================================
-      // Invalid Message
+      // AI SERVICE ERROR
       // =================================================
 
       else if (
-        errorText.includes('message string')
+        errorText.includes(
+          'ai service'
+        )
       ) {
+
+        errorMessage =
+          'The AI service is temporarily unavailable. Please try again.';
+      }
+
+
+      // =================================================
+      // INVALID MESSAGE
+      // =================================================
+
+      else if (
+        errorText.includes(
+          'message string'
+        )
+      ) {
+
         errorMessage =
           'Please enter a valid message.';
       }
 
 
       // =================================================
-      // Message Too Long
+      // MESSAGE TOO LONG
       // =================================================
 
       else if (
-        errorText.includes('too long')
+        errorText.includes(
+          'message too long'
+        )
       ) {
+
         errorMessage =
           'Your message is too long. Please keep it under 500 characters.';
       }
 
 
       // =================================================
-      // Add Error Message
+      // ADD ERROR MESSAGE
       // =================================================
 
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        {
-          role: 'bot',
-          text: errorMessage,
-        },
-      ]);
+      setMessages(
+        (previousMessages) => [
+          ...previousMessages,
+
+          {
+            role: 'bot',
+            text: errorMessage,
+          },
+        ]
+      );
+
 
     } finally {
-
-      // =================================================
-      // Stop Loading
-      // =================================================
 
       setIsLoading(false);
     }
@@ -299,7 +338,7 @@ const Chatbot = () => {
 
 
   // ===================================================
-  // Enter Key Handler
+  // ENTER KEY
   // ===================================================
 
   const handleKeyDown = (event) => {
@@ -317,12 +356,14 @@ const Chatbot = () => {
 
 
   // ===================================================
-  // Toggle Chatbot
+  // TOGGLE CHATBOT
   // ===================================================
 
   const toggleChatbot = () => {
+
     setIsOpen(
-      (previousState) => !previousState
+      (previousState) =>
+        !previousState
     );
   };
 
@@ -334,15 +375,20 @@ const Chatbot = () => {
   return (
     <>
       {/* =========================================
-          Floating Chat Button
+          FLOATING CHAT BUTTON
       ========================================== */}
 
       <button
         type="button"
+
         className={`chatbot-toggle ${
           isOpen ? 'open' : ''
         }`}
-        onClick={toggleChatbot}
+
+        onClick={
+          toggleChatbot
+        }
+
         aria-label={
           isOpen
             ? 'Close chat'
@@ -380,7 +426,7 @@ const Chatbot = () => {
 
 
       {/* =========================================
-          Chat Window
+          CHAT WINDOW
       ========================================== */}
 
       <div
@@ -390,7 +436,7 @@ const Chatbot = () => {
       >
 
         {/* =======================================
-            Header
+            HEADER
         ======================================== */}
 
         <div className="chatbot-header">
@@ -417,7 +463,7 @@ const Chatbot = () => {
 
 
         {/* =======================================
-            Messages
+            MESSAGES
         ======================================== */}
 
         <div className="chatbot-messages">
@@ -427,7 +473,10 @@ const Chatbot = () => {
 
               <div
                 key={`${message.role}-${index}`}
-                className={`chatbot-bubble ${message.role}`}
+
+                className={`chatbot-bubble ${
+                  message.role
+                }`}
               >
                 {message.text}
               </div>
@@ -437,13 +486,17 @@ const Chatbot = () => {
 
 
           {/* =====================================
-              Loading Animation
+              TYPING
           ====================================== */}
 
           {isLoading && (
 
             <div
-              className="chatbot-bubble bot chatbot-typing"
+              className="
+                chatbot-bubble
+                bot
+                chatbot-typing
+              "
             >
 
               <span></span>
@@ -455,8 +508,6 @@ const Chatbot = () => {
           )}
 
 
-          {/* Auto Scroll Reference */}
-
           <div
             ref={messagesEndRef}
           />
@@ -465,37 +516,54 @@ const Chatbot = () => {
 
 
         {/* =======================================
-            Input Area
+            INPUT
         ======================================== */}
 
         <div className="chatbot-input-row">
 
           <input
             type="text"
+
             value={input}
+
             onChange={(event) =>
-              setInput(event.target.value)
+              setInput(
+                event.target.value
+              )
             }
-            onKeyDown={handleKeyDown}
+
+            onKeyDown={
+              handleKeyDown
+            }
+
             placeholder="Ask about the menu..."
+
             className="chatbot-input"
+
             disabled={isLoading}
+
             maxLength={500}
           />
 
 
           {/* =====================================
-              Send Button
+              SEND BUTTON
           ====================================== */}
 
           <button
             type="button"
+
             className="chatbot-send"
-            onClick={sendMessage}
+
+            onClick={
+              sendMessage
+            }
+
             disabled={
               isLoading ||
               !input.trim()
             }
+
             aria-label="Send message"
           >
 

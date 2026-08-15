@@ -5,12 +5,12 @@ export default async function handler(req, res) {
   // CORS
   // =====================================================
 
-  const origin = req.headers.origin;
-
   const allowedOrigins = [
     'http://localhost:5173',
     'https://coffeeebrewwebsite.vercel.app',
   ];
+
+  const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
     res.setHeader(
@@ -34,16 +34,18 @@ export default async function handler(req, res) {
     'Origin'
   );
 
+
   // =====================================================
-  // OPTIONS
+  // OPTIONS / PREFLIGHT
   // =====================================================
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
 
+
   // =====================================================
-  // POST ONLY
+  // ONLY POST
   // =====================================================
 
   if (req.method !== 'POST') {
@@ -52,12 +54,15 @@ export default async function handler(req, res) {
     });
   }
 
+
   try {
+
     // ===================================================
-    // GET MESSAGE
+    // GET USER MESSAGE
     // ===================================================
 
     const userMessage = req.body?.message;
+
 
     if (
       !userMessage ||
@@ -68,19 +73,28 @@ export default async function handler(req, res) {
       });
     }
 
+
+    // ===================================================
+    // MESSAGE LENGTH
+    // ===================================================
+
     if (userMessage.length > 500) {
       return res.status(400).json({
         error: 'Message too long.',
       });
     }
 
+
     // ===================================================
     // GROQ API KEY
     // ===================================================
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey =
+      process.env.GROQ_API_KEY;
+
 
     if (!apiKey) {
+
       console.error(
         'GROQ_API_KEY is not configured.'
       );
@@ -91,27 +105,12 @@ export default async function handler(req, res) {
       });
     }
 
+
     // ===================================================
-    // GROQ REQUEST
+    // SYSTEM PROMPT
     // ===================================================
 
-    const response = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-
-          messages: [
-            {
-              role: 'system',
-              content: `
+    const systemPrompt = `
 You are the friendly virtual barista for Brew Haven, a coffee shop.
 
 Answer questions about:
@@ -128,11 +127,38 @@ If the question is unrelated to the coffee shop,
 politely redirect the customer back to coffee-related topics.
 
 Keep replies under 3 sentences unless the customer asks for more detail.
-              `.trim(),
+    `.trim();
+
+
+    // ===================================================
+    // GROQ API REQUEST
+    // ===================================================
+
+    const response = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+
+          Authorization:
+            `Bearer ${apiKey}`,
+        },
+
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+
+          messages: [
+            {
+              role: 'system',
+
+              content: systemPrompt,
             },
 
             {
               role: 'user',
+
               content: userMessage,
             },
           ],
@@ -144,23 +170,27 @@ Keep replies under 3 sentences unless the customer asks for more detail.
       }
     );
 
+
     // ===================================================
-    // READ RESPONSE
+    // READ GROQ RESPONSE
     // ===================================================
 
     const responseText =
       await response.text();
 
+
     console.log(
-      'Groq status:',
+      'Groq response status:',
       response.status
     );
+
 
     // ===================================================
     // GROQ ERROR
     // ===================================================
 
     if (!response.ok) {
+
       console.error(
         'Groq API error:',
         response.status,
@@ -173,6 +203,7 @@ Keep replies under 3 sentences unless the customer asks for more detail.
       });
     }
 
+
     // ===================================================
     // PARSE JSON
     // ===================================================
@@ -180,8 +211,13 @@ Keep replies under 3 sentences unless the customer asks for more detail.
     let data;
 
     try {
-      data = JSON.parse(responseText);
+
+      data = JSON.parse(
+        responseText
+      );
+
     } catch (error) {
+
       console.error(
         'Groq JSON parse error:',
         error
@@ -193,14 +229,19 @@ Keep replies under 3 sentences unless the customer asks for more detail.
       });
     }
 
+
     // ===================================================
-    // GET REPLY
+    // GET AI RESPONSE
     // ===================================================
 
     const reply =
-      data?.choices?.[0]?.message?.content;
+      data?.choices?.[0]
+        ?.message
+        ?.content;
+
 
     if (!reply) {
+
       console.error(
         'Groq returned no reply:',
         JSON.stringify(data)
@@ -212,6 +253,7 @@ Keep replies under 3 sentences unless the customer asks for more detail.
       });
     }
 
+
     // ===================================================
     // SUCCESS
     // ===================================================
@@ -219,6 +261,7 @@ Keep replies under 3 sentences unless the customer asks for more detail.
     return res.status(200).json({
       reply: reply.trim(),
     });
+
 
   } catch (error) {
 
