@@ -8,11 +8,17 @@ import './Chatbot.css';
 
 
 // =====================================================
-// Firebase HTTP Function URL
+// VERCEL CHATBOT API
+// =====================================================
+//
+// IMPORTANT:
+// Firebase Cloud Functions are NOT used anymore.
+// The request goes to:
+// https://coffeeebrewwebsite.vercel.app/api/chat
+//
 // =====================================================
 
-const CHATBOT_URL =
-  'https://us-central1-coofee-website.cloudfunctions.net/chatWithBarista';
+const CHATBOT_URL = '/api/chat';
 
 
 // =====================================================
@@ -32,11 +38,9 @@ const Chatbot = () => {
 
   const [input, setInput] = useState('');
 
-  const [isLoading, setIsLoading] =
-    useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const messagesEndRef =
-    useRef(null);
+  const messagesEndRef = useRef(null);
 
 
   // ===================================================
@@ -57,19 +61,21 @@ const Chatbot = () => {
   const sendMessage = async () => {
     const trimmed = input.trim();
 
-    // Prevent empty messages
+    // -----------------------------------------------
+    // Prevent empty message
+    // -----------------------------------------------
+
     if (!trimmed || isLoading) {
       return;
     }
 
 
-    // =================================================
-    // Add User Message
-    // =================================================
+    // -----------------------------------------------
+    // Add user message
+    // -----------------------------------------------
 
     setMessages((previousMessages) => [
       ...previousMessages,
-
       {
         role: 'user',
         text: trimmed,
@@ -77,23 +83,29 @@ const Chatbot = () => {
     ]);
 
 
+    // -----------------------------------------------
     // Clear input
+    // -----------------------------------------------
+
     setInput('');
 
 
+    // -----------------------------------------------
     // Start loading
+    // -----------------------------------------------
+
     setIsLoading(true);
 
 
     try {
       console.log(
-        'Sending message to Firebase Function:',
+        'Sending message to Vercel API:',
         trimmed
       );
 
 
       // =================================================
-      // Send HTTP POST Request
+      // Call Vercel API
       // =================================================
 
       const response = await fetch(
@@ -113,7 +125,7 @@ const Chatbot = () => {
 
 
       console.log(
-        'Firebase HTTP response status:',
+        'Vercel API response status:',
         response.status
       );
 
@@ -128,7 +140,7 @@ const Chatbot = () => {
         data = await response.json();
       } catch (jsonError) {
         console.error(
-          'Failed to parse Firebase response:',
+          'Failed to parse API response:',
           jsonError
         );
 
@@ -139,7 +151,7 @@ const Chatbot = () => {
 
 
       console.log(
-        'Firebase Function response:',
+        'Vercel chatbot response:',
         data
       );
 
@@ -171,7 +183,6 @@ const Chatbot = () => {
 
       setMessages((previousMessages) => [
         ...previousMessages,
-
         {
           role: 'bot',
           text: reply,
@@ -180,6 +191,10 @@ const Chatbot = () => {
 
     } catch (error) {
 
+      // =================================================
+      // Log Error
+      // =================================================
+
       console.error(
         'Chatbot error:',
         error
@@ -187,31 +202,35 @@ const Chatbot = () => {
 
 
       // =================================================
-      // Error Message
+      // Default Error
       // =================================================
 
       let errorMessage =
         "Couldn't reach the barista bot right now. Please try again.";
 
 
-      // =================================================
-      // Error Handling
-      // =================================================
-
       const errorText =
         error?.message?.toLowerCase() || '';
 
+
+      // =================================================
+      // Network Error
+      // =================================================
 
       if (
         errorText.includes('failed to fetch') ||
         errorText.includes('network')
       ) {
         errorMessage =
-          'Unable to connect to the chatbot server. Please check your internet connection and try again.';
+          'Unable to connect to the chatbot server. Please try again.';
       }
 
 
-      if (
+      // =================================================
+      // Gemini Error
+      // =================================================
+
+      else if (
         errorText.includes('gemini')
       ) {
         errorMessage =
@@ -219,7 +238,24 @@ const Chatbot = () => {
       }
 
 
-      if (
+      // =================================================
+      // API Key Error
+      // =================================================
+
+      else if (
+        errorText.includes('api key') ||
+        errorText.includes('not configured')
+      ) {
+        errorMessage =
+          'The chatbot API is not configured correctly on Vercel.';
+      }
+
+
+      // =================================================
+      // Invalid Message
+      // =================================================
+
+      else if (
         errorText.includes('message string')
       ) {
         errorMessage =
@@ -227,8 +263,12 @@ const Chatbot = () => {
       }
 
 
-      if (
-        errorText.includes('message too long')
+      // =================================================
+      // Message Too Long
+      // =================================================
+
+      else if (
+        errorText.includes('too long')
       ) {
         errorMessage =
           'Your message is too long. Please keep it under 500 characters.';
@@ -241,7 +281,6 @@ const Chatbot = () => {
 
       setMessages((previousMessages) => [
         ...previousMessages,
-
         {
           role: 'bot',
           text: errorMessage,
@@ -250,7 +289,10 @@ const Chatbot = () => {
 
     } finally {
 
-      // Stop loading
+      // =================================================
+      // Stop Loading
+      // =================================================
+
       setIsLoading(false);
     }
   };
@@ -279,10 +321,8 @@ const Chatbot = () => {
   // ===================================================
 
   const toggleChatbot = () => {
-
     setIsOpen(
-      (previousState) =>
-        !previousState
+      (previousState) => !previousState
     );
   };
 
