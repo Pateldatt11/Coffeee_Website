@@ -14,9 +14,10 @@ import './Chatbot.css';
 const CHATBOT_URL = '/api/chat';
 
 const QUICK_REPLIES = [
-  'Menu shu che?',
-  "Aaj ke hours kya hai?",
+  'Menu ane prices batavo',
+  'Aaj kitna baje band hoga?',
   'Best seller कौनसा आहे?',
+  'Delivery available che?',
 ];
 
 

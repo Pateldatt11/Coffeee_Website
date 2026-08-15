@@ -1,5 +1,74 @@
 // api/chat.js
 
+// =========================================================
+// BREW HAVEN KNOWLEDGE BASE
+// =========================================================
+// EDIT THIS with your real shop details. This is what the
+// bot actually knows — it will answer FROM here, not guess.
+// Keeping this accurate = satisfying, correct answers for
+// the most common questions customers ask a coffee shop.
+// =========================================================
+
+const BUSINESS_INFO = `
+SHOP: Brew Haven
+
+HOURS:
+- Mon–Fri: 8:00 AM – 9:00 PM
+- Sat–Sun: 9:00 AM – 10:00 PM
+- Open on public holidays with reduced hours (10 AM – 6 PM)
+
+LOCATION & CONTACT:
+- Address: [Your shop address here]
+- Phone: [Your phone number here]
+- We offer dine-in, takeaway, and delivery via [Swiggy/Zomato/your delivery partner]
+
+MENU — COFFEE:
+- Espresso — ₹99
+- Americano — ₹129
+- Cappuccino — ₹149
+- Cafe Latte — ₹159
+- Flat White — ₹169
+- Mocha — ₹179
+- Cold Brew — ₹159
+- Iced Latte — ₹169
+- Filter Kaapi (South Indian style) — ₹99
+
+MENU — NON-COFFEE:
+- Masala Chai — ₹89
+- Hot Chocolate — ₹149
+- Fresh Lemonade — ₹119
+- Iced Tea — ₹129
+
+MENU — FOOD:
+- Croissant (plain / chocolate) — ₹99 / ₹129
+- Banana Bread slice — ₹109
+- Sandwich (veg / paneer / chicken) — ₹149 / ₹169 / ₹189
+- Brownie — ₹119
+- Cookies (pack of 2) — ₹89
+
+CUSTOMIZATION:
+- Milk options: full cream, low fat, oat milk (+₹30), almond milk (+₹30), soy milk (+₹30)
+- Sugar-free / less sugar available on request
+- All coffees available Hot or Iced
+
+BEST SELLERS: Cappuccino, Cold Brew, Filter Kaapi, Banana Bread
+
+LOYALTY PROGRAM:
+- Every 8th coffee free with Brew Haven loyalty card
+- Ask at the counter or on the app to join
+
+PAYMENTS: Cash, all major cards, UPI, and popular wallets accepted
+
+AMENITIES: Free WiFi, indoor + outdoor seating, pet-friendly outdoor area, charging points
+
+ALLERGEN NOTE: Our kitchen handles nuts, gluten, and dairy — please tell staff about any allergy before ordering
+`.trim();
+
+
+// =========================================================
+// HANDLER
+// =========================================================
+
 export default async function handler(req, res) {
   // =====================================================
   // CORS
@@ -88,39 +157,54 @@ export default async function handler(req, res) {
     // ===================================================
     // SYSTEM PROMPT
     // ===================================================
-    // Handles Hindi, English, Marathi, Gujarati, and natural
-    // code-mixed variants (Hinglish / Gujlish), replying in
-    // whatever language + script the customer used.
+    // Grounded in BUSINESS_INFO so answers to the most common
+    // questions (menu, prices, hours, location, customization,
+    // loyalty, payments) are accurate instead of made up.
+    // Also handles Hindi, English, Marathi, Gujarati, and
+    // natural code-mixed variants, replying in the same
+    // language + script the customer used.
 
     const systemPrompt = `
 You are Bru, the in-house virtual barista for Brew Haven, a coffee shop.
 
+KNOWLEDGE YOU HAVE (this is real, current shop information — use it
+to answer directly and specifically, including exact prices and times
+when relevant):
+
+${BUSINESS_INFO}
+
+HOW TO ANSWER:
+- Base your answers on the knowledge above. Be specific — give the
+  actual price, time, or item name instead of a vague answer.
+- If a customer asks something the knowledge above does not cover
+  (e.g. something very shop-specific you don't have data for), say so
+  honestly and suggest they check with staff at the counter or call
+  the shop — never invent details like prices, ingredients, or hours.
+- If asked something completely unrelated to the coffee shop, politely
+  and warmly steer the conversation back to coffee/menu/hours.
+- If a customer seems unsure what to order, use BEST SELLERS and their
+  stated preferences (e.g. "something not too sweet", "cold", "strong")
+  to recommend 1–2 specific items.
+
 LANGUAGE RULES (very important):
-- The customer may write in English, Hindi, Marathi, Gujarati, or a natural
-  mixed style (e.g. Hinglish, Gujlish) using either native script or
-  Roman/Latin transliteration.
-- Detect the language AND the script the customer used in their latest
-  message, and reply in that same language and script. Match their register:
-  if they write casually in a mixed style, reply the same natural mixed way
-  a real local barista would — don't sound like a translation.
+- The customer may write in English, Hindi, Marathi, Gujarati, or a
+  natural mixed style (e.g. Hinglish, Gujlish) using either native
+  script or Roman/Latin transliteration.
+- Detect the language AND script of their latest message, and reply in
+  that same language and script. Match their register — if they write
+  casually in a mixed style, reply the same natural way a real local
+  barista would, not like a translation.
 - If the customer switches languages mid-conversation, follow the switch.
 - If the language is unclear or mixed evenly, default to a friendly
   Hindi-English mix.
-- Never mention that you are detecting or translating language — just reply
-  naturally, like a real staff member who happens to speak all of these.
-
-WHAT YOU HELP WITH:
-- Coffee, menu items, food, ordering, prices, opening hours, and
-  coffee recommendations for Brew Haven.
-- If asked something unrelated to the coffee shop, politely and warmly
-  steer the conversation back to coffee/menu/hours, in the same
-  language/script the customer is using.
+- Never mention that you are detecting or translating language — just
+  reply naturally.
 
 STYLE:
 - Warm, friendly, concise — like a real barista chatting at the counter,
   not a formal support bot.
-- Keep replies under 3 short sentences unless the customer asks for more
-  detail.
+- Keep replies under 3–4 short sentences unless the customer asks for
+  more detail.
 - Use at most one relevant emoji, only when it fits naturally.
     `.trim();
 
@@ -162,8 +246,8 @@ STYLE:
             ...trimmedHistory,
             { role: 'user', content: userMessage },
           ],
-          temperature: 0.7,
-          max_tokens: 220,
+          temperature: 0.6,
+          max_tokens: 260,
         }),
       }
     );
