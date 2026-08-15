@@ -15,8 +15,8 @@ const CHATBOT_URL = '/api/chat';
 
 const QUICK_REPLIES = [
   'Menu shu che?',
-  "Today's hours?",
-  'Best seller coffee kayu?',
+  "Aaj ke hours kya hai?",
+  'Best seller कौनसा आहे?',
 ];
 
 
@@ -33,7 +33,7 @@ const Chatbot = () => {
     {
       role: 'bot',
       text:
-        "Hey there! 👋 I'm Bru, the Brew Haven barista bot. Ask me about our menu, hours, or get a coffee recommendation.",
+        "Hey there! 👋 I'm Bru, your Brew Haven barista. Ask me anything — menu, hours, recommendations. Hindi, English, Marathi, Gujarati — jaadu bhasha ma vaat karo, hu samju chu!",
       time: getTime(),
     },
   ]);
@@ -103,12 +103,19 @@ const Chatbot = () => {
 
     try {
 
+      const recentHistory = messages
+        .slice(-6)
+        .map(({ role, text }) => ({ role, text }));
+
       const response = await fetch(CHATBOT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({
+          message: trimmed,
+          history: recentHistory,
+        }),
       });
 
       let data;
@@ -264,10 +271,10 @@ const Chatbot = () => {
           </div>
 
           <div className="chatbot-header-text">
-            <p className="chatbot-header-title">Brew Haven Barista</p>
+            <p className="chatbot-header-title">Brew Haven</p>
             <p className="chatbot-header-sub">
               <span className="chatbot-status-dot" />
-              Online now
+              Bru is online
             </p>
           </div>
 
@@ -307,7 +314,34 @@ const Chatbot = () => {
               >
                 {message.text}
               </div>
-              <span className="chatbot-time">{message.time}</span>
+              <span className="chatbot-time">
+                {message.time}
+                {message.role === 'user' && (
+                  <svg
+                    className="chatbot-tick"
+                    width="13"
+                    height="9"
+                    viewBox="0 0 16 11"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M1 5.5L5 9.5L11 1.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M5.5 5.5L9.5 9.5L15.5 1.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </span>
             </div>
           ))}
 
@@ -361,7 +395,7 @@ const Chatbot = () => {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about the menu..."
+            placeholder="Type in any language..."
             className="chatbot-input"
             disabled={isLoading}
             maxLength={500}
@@ -386,7 +420,7 @@ const Chatbot = () => {
 
         </div>
 
-        <p className="chatbot-footer-note">Brew Haven · AI barista, replies may vary</p>
+        <p className="chatbot-footer-note">Brew Haven · usually replies in a few seconds</p>
 
       </div>
     </>

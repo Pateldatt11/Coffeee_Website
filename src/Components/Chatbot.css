@@ -278,6 +278,14 @@
   color: var(--bh-text-muted);
   margin-top: 3px;
   padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chatbot-tick {
+  color: var(--bh-gold);
+  flex-shrink: 0;
 }
 
 /* =====================================================
