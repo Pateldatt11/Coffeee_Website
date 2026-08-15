@@ -1,0 +1,548 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import './Profile.css';
+import { useNavigate } from 'react-router-dom';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+
+// Payment method labels + colors (kept inside the same warm coffee palette
+// as the rest of the site, just tinted differently per method)
+const PAYMENT_META = {
+  card: { label: 'Card', className: 'pay-card' },
+  cod: { label: 'Cash on Delivery', className: 'pay-cod' },
+  other: { label: 'Other', className: 'pay-other' },
+};
+
+// OrderOnline.jsx saves paymentMethod as the literal string 'Razorpay' or
+// 'Cash on Delivery' — not the short 'card'/'cod' keys — so normalize
+// before looking up the badge style, or every order shows as "Other".
+const getPaymentMeta = (method) => {
+  const m = (method || '').toLowerCase();
+  if (m.includes('razorpay') || m.includes('card')) return PAYMENT_META.card;
+  if (m.includes('cash') || m.includes('cod')) return PAYMENT_META.cod;
+  return PAYMENT_META.other;
+};
+
+const emptyProfile = {
+  name: '',
+  username: '',
+  dob: '',
+  address: '',
+  phone: '',
+  email: '',
+  photoURL: '',
+};
+
+const Profile = () => {
+  const [user, authLoading] = useAuthState(auth);
+  const navigate = useNavigate();
+
+  const [profile, setProfile] = useState(emptyProfile);
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState(emptyProfile);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // ── Cursor dot/ring + scroll fade-in, matching Menu.jsx / OrderOnline.jsx ──
+  const dotRef = useRef(null);
+  const ringRef = useRef(null);
+
+  const onMouseMove = useCallback((e) => {
+    if (dotRef.current) {
+      dotRef.current.style.left = `${e.clientX}px`;
+      dotRef.current.style.top = `${e.clientY}px`;
+    }
+    if (ringRef.current) {
+      ringRef.current.style.left = `${e.clientX}px`;
+      ringRef.current.style.top = `${e.clientY}px`;
+    }
+  }, []);
+
+  const addHover = useCallback(() => ringRef.current?.classList.add('hovered'), []);
+  const rmvHover = useCallback(() => ringRef.current?.classList.remove('hovered'), []);
+
+  // Redirect out if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login');
+    }
+  }, [authLoading, user, navigate]);
+
+  // Load profile from Firestore
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      setLoading(true);
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          const loaded = {
+            name: data.name || user.displayName || '',
+            username: data.username || '',
+            dob: data.dob || '',
+            address: data.address || '',
+            phone: data.phone || '',
+            email: data.email || user.email || '',
+            photoURL: data.photoURL || user.photoURL || '',
+          };
+          if (!cancelled) {
+            setProfile(loaded);
+            setDraft(loaded);
+          }
+        } else {
+          const fallback = {
+            ...emptyProfile,
+            name: user.displayName || '',
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+          };
+          if (!cancelled) {
+            setProfile(fallback);
+            setDraft(fallback);
+          }
+        }
+      } catch (err) {
+        console.error('Profile load failed:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadProfile();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Load order + payment history
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      setOrdersLoading(true);
+      try {
+        // No orderBy here on purpose — combining where() + orderBy() on
+        // different fields needs a Firestore composite index. Sorting
+        // client-side avoids that setup step entirely.
+        // NOTE: field is 'userId' (not 'uid') — must match both the
+        // Firestore security rules and whatever OrderOnline.jsx saves
+        // on the order document, or this query silently returns nothing.
+        const q = query(collection(db, 'orders'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => {
+            const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return bTime - aTime;
+          });
+        if (!cancelled) setOrders(list);
+      } catch (err) {
+        console.error('Orders load failed:', err);
+        if (!cancelled) setOrders([]);
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    };
+
+    loadOrders();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  useEffect(() => {
+    document.addEventListener('mousemove', onMouseMove);
+
+    const hoverTargets = document.querySelectorAll(
+      'button, a, .photo-dropzone, .order-item, .order-line-item'
+    );
+    hoverTargets.forEach((el) => {
+      el.addEventListener('mouseenter', addHover);
+      el.addEventListener('mouseleave', rmvHover);
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      }),
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      hoverTargets.forEach((el) => {
+        el.removeEventListener('mouseenter', addHover);
+        el.removeEventListener('mouseleave', rmvHover);
+      });
+      observer.disconnect();
+    };
+    // Re-scan whenever orders/edit-mode render new DOM nodes that need
+    // hover/fade-in wiring (cards mount async after the orders fetch).
+  }, [onMouseMove, addHover, rmvHover, orders, editMode, loading, ordersLoading]);
+
+  const displayName = profile.name || user?.displayName || user?.email?.split('@')[0] || 'Brewer';
+
+  const handleFieldChange = (field) => (e) => {
+    setDraft((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const startEdit = () => {
+    setDraft(profile);
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    setDraft(profile);
+    setEditMode(false);
+  };
+
+  const saveEdit = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { ...draft }, { merge: true });
+      setProfile(draft);
+      setEditMode(false);
+    } catch (err) {
+      console.error('Profile save failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Photo drag & drop ──
+  const readFileAsDataURL = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  // Firestore documents cap out at 1MB, and a straight-from-camera photo
+  // easily blows past that as a base64 string — saving it would then
+  // throw and the photo would silently never save. Downscaling to a
+  // small square first keeps every upload well under the limit.
+  const resizeImage = (file, maxSize = 300, quality = 0.85) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = () => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const [photoError, setPhotoError] = useState('');
+
+  const applyPhoto = async (file) => {
+    if (!file || !file.type.startsWith('image/') || !user) return;
+    setPhotoError('');
+    try {
+      const dataUrl = await resizeImage(file);
+
+      // Belt-and-braces check: Firestore fields max out around 1MB.
+      // A resized JPEG should land far below this, but guard anyway.
+      const approxBytes = Math.ceil((dataUrl.length * 3) / 4);
+      if (approxBytes > 900 * 1024) {
+        setPhotoError('Image is too large even after compression — try a smaller photo.');
+        return;
+      }
+
+      // Stored directly on the user doc as a data URL for simplicity.
+      // Swap this for a Firebase Storage upload + getDownloadURL if you'd
+      // rather keep Firestore documents small.
+      // setDoc + merge (not updateDoc) so this also works the very first
+      // time — updateDoc throws if the users/{uid} doc doesn't exist yet.
+      await setDoc(doc(db, 'users', user.uid), { photoURL: dataUrl }, { merge: true });
+      setProfile((prev) => ({ ...prev, photoURL: dataUrl }));
+      setDraft((prev) => ({ ...prev, photoURL: dataUrl }));
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      setPhotoError('Photo upload failed — please try again.');
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    applyPhoto(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => setIsDragging(false);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    applyPhoto(file);
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '—';
+    const d = value?.toDate ? value.toDate() : new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // Order docs may or may not carry their own snapshot of shipping/contact
+  // info (captured at checkout time). If they don't, we fall back to the
+  // user's current profile so the order card is never left blank.
+  const getOrderContact = (order) => ({
+    name: order.customerName || order.name || profile.name || displayName,
+    address: order.address || order.shippingAddress || profile.address || '—',
+    phone: order.phone || profile.phone || '—',
+    email: order.email || profile.email || '—',
+  });
+
+  if (authLoading || loading) {
+    return (
+      <div className="profile-page">
+        <div className="profile-loading">Brewing your profile…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="profile-page">
+      <div className="cursor-dot" ref={dotRef} />
+      <div className="cursor-ring" ref={ringRef} />
+      <div className="container profile-container">
+
+        {/* ── Photo + identity header ── */}
+        <div className="profile-header fade-in">
+          <div
+            className={`photo-dropzone ${isDragging ? 'dragging' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {profile.photoURL ? (
+              <img src={profile.photoURL} alt={displayName} className="avatar-img-lg" />
+            ) : (
+              <span className="avatar-initials-lg">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div className="photo-overlay">
+              <span>Drag &amp; drop or click to change photo</span>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden-file-input"
+              onChange={handleFileSelect}
+            />
+          </div>
+
+          <div className="profile-heading">
+            <h1 className="profile-name">Hey, {displayName}!</h1>
+            <p className="profile-sub">{profile.email}</p>
+            {photoError && <p className="photo-error">{photoError}</p>}
+          </div>
+        </div>
+
+        {/* ── Editable details card ── */}
+        <div className="profile-card fade-in">
+          <div className="profile-card-head">
+            <h2>My Details</h2>
+            {!editMode ? (
+              <button className="nav-link signup-btn" onClick={startEdit}>
+                Edit Profile
+              </button>
+            ) : (
+              <div className="edit-actions">
+                <button className="nav-link login-btn" onClick={cancelEdit} disabled={saving}>
+                  Cancel
+                </button>
+                <button className="nav-link signup-btn" onClick={saveEdit} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="profile-fields">
+            <div className="field-group">
+              <label>Full Name</label>
+              {editMode ? (
+                <input value={draft.name} onChange={handleFieldChange('name')} placeholder="Your name" />
+              ) : (
+                <p>{profile.name || '—'}</p>
+              )}
+            </div>
+
+            <div className="field-group">
+              <label>Username</label>
+              {editMode ? (
+                <input value={draft.username} onChange={handleFieldChange('username')} placeholder="username" />
+              ) : (
+                <p>{profile.username ? `@${profile.username}` : '—'}</p>
+              )}
+            </div>
+
+            <div className="field-group">
+              <label>Date of Birth</label>
+              {editMode ? (
+                <input type="date" value={draft.dob} onChange={handleFieldChange('dob')} />
+              ) : (
+                <p>{profile.dob || '—'}</p>
+              )}
+            </div>
+
+            <div className="field-group">
+              <label>Phone Number</label>
+              {editMode ? (
+                <input value={draft.phone} onChange={handleFieldChange('phone')} placeholder="+91 9xxxxxxxxx" />
+              ) : (
+                <p>{profile.phone || '—'}</p>
+              )}
+            </div>
+
+            <div className="field-group">
+              <label>Email</label>
+              {editMode ? (
+                <input type="email" value={draft.email} onChange={handleFieldChange('email')} placeholder="you@example.com" />
+              ) : (
+                <p>{profile.email || '—'}</p>
+              )}
+            </div>
+
+            <div className="field-group field-wide">
+              <label>Address</label>
+              {editMode ? (
+                <textarea
+                  value={draft.address}
+                  onChange={handleFieldChange('address')}
+                  placeholder="Flat / Street / City / Pincode"
+                  rows={3}
+                />
+              ) : (
+                <p>{profile.address || '—'}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Orders + payment history ── */}
+        <div className="profile-card orders-card fade-in">
+          <div className="profile-card-head">
+            <h2>My Orders</h2>
+          </div>
+
+          {ordersLoading ? (
+            <p className="orders-empty">Loading your orders…</p>
+          ) : orders.length === 0 ? (
+            <p className="orders-empty">No orders yet — go treat yourself ☕</p>
+          ) : (
+            <ul className="orders-list">
+              {orders.map((order, orderIdx) => {
+                const meta = getPaymentMeta(order.paymentMethod);
+                const items = order.items || [];
+                const contact = getOrderContact(order);
+
+                return (
+                  <li
+                    key={order.id}
+                    className="order-item order-item-full fade-in"
+                    style={{ transitionDelay: `${(orderIdx % 8) * 0.07}s` }}
+                  >
+                    {/* Order header */}
+                    <div className="order-main">
+                      <span className="order-id">#{order.id.slice(-6).toUpperCase()}</span>
+                      <span className="order-date">{formatDate(order.createdAt)}</span>
+                      <span className={`status-badge status-${(order.status || 'placed').toLowerCase()}`}>
+                        {order.status || 'Placed'}
+                      </span>
+                    </div>
+
+                    {/* Item-by-item breakdown: image, name, qty, price */}
+                    <div className="order-items-detailed">
+                      {items.length === 0 ? (
+                        <p className="order-items-empty">Order details unavailable</p>
+                      ) : (
+                        items.map((it, idx) => (
+                          <div className="order-line-item" key={it.id || `${order.id}-${idx}`}>
+                            <img
+                              src={it.img || it.image || it.photoURL || '/coffee-placeholder.png'}
+                              alt={it.name || 'Coffee item'}
+                              className="order-line-img"
+                              onError={(e) => { e.currentTarget.src = '/coffee-placeholder.png'; }}
+                            />
+                            <div className="order-line-info">
+                              <span className="order-line-name">{it.name || 'Unnamed item'}</span>
+                              <span className="order-line-qty">Qty: {it.quantity ?? it.qty ?? 1}</span>
+                            </div>
+                            <span className="order-line-price">
+                              ₹{it.price ?? 0}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Shipping / contact snapshot for this order */}
+                    <div className="order-contact-grid">
+                      <div className="order-contact-field">
+                        <label>Name</label>
+                        <p>{contact.name}</p>
+                      </div>
+                      <div className="order-contact-field">
+                        <label>Phone</label>
+                        <p>{contact.phone}</p>
+                      </div>
+                      <div className="order-contact-field">
+                        <label>Email</label>
+                        <p>{contact.email}</p>
+                      </div>
+                      <div className="order-contact-field order-contact-wide">
+                        <label>Delivery Address</label>
+                        <p>{contact.address}</p>
+                      </div>
+                    </div>
+
+                    {/* Payment + total footer */}
+                    <div className="order-footer">
+                      <span className={`pay-badge ${meta.className}`}>{meta.label}</span>
+                      <span className="order-total">Total: ₹{order.total ?? order.amount ?? '0'}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Profile;
