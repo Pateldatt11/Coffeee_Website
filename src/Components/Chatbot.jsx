@@ -13,6 +13,12 @@ import './Chatbot.css';
 
 const CHATBOT_URL = '/api/chat';
 
+const QUICK_REPLIES = [
+  'Menu shu che?',
+  "Today's hours?",
+  'Best seller coffee kayu?',
+];
+
 
 // =====================================================
 // CHATBOT COMPONENT
@@ -20,27 +26,35 @@ const CHATBOT_URL = '/api/chat';
 
 const Chatbot = () => {
 
-  const [isOpen, setIsOpen] =
-    useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasNewMessage, setHasNewMessage] = useState(true);
 
-  const [messages, setMessages] =
-    useState([
-      {
-        role: 'bot',
+  const [messages, setMessages] = useState([
+    {
+      role: 'bot',
+      text:
+        "Hey there! 👋 I'm Bru, the Brew Haven barista bot. Ask me about our menu, hours, or get a coffee recommendation.",
+      time: getTime(),
+    },
+  ]);
 
-        text:
-          "Hey! I'm the Brew Haven barista bot ☕ — ask me about the menu, hours, or anything coffee related.",
-      },
-    ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [input, setInput] =
-    useState('');
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
-  const [isLoading, setIsLoading] =
-    useState(false);
 
-  const messagesEndRef =
-    useRef(null);
+  // ===================================================
+  // TIME HELPER
+  // ===================================================
+
+  function getTime() {
+    return new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
 
 
   // ===================================================
@@ -48,290 +62,103 @@ const Chatbot = () => {
   // ===================================================
 
   useEffect(() => {
-
     messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
     });
+  }, [messages, isOpen, isLoading]);
 
-  }, [messages, isOpen]);
+
+  // ===================================================
+  // FOCUS INPUT ON OPEN
+  // ===================================================
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasNewMessage(false);
+      const t = setTimeout(() => inputRef.current?.focus(), 250);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
 
 
   // ===================================================
   // SEND MESSAGE
   // ===================================================
 
-  const sendMessage = async () => {
+  const sendMessage = async (overrideText) => {
 
-    const trimmed =
-      input.trim();
+    const trimmed = (overrideText ?? input).trim();
 
-
-    // -----------------------------------------------
-    // Prevent empty message
-    // -----------------------------------------------
-
-    if (
-      !trimmed ||
-      isLoading
-    ) {
+    if (!trimmed || isLoading) {
       return;
     }
 
-
-    // -----------------------------------------------
-    // Add user message
-    // -----------------------------------------------
-
-    setMessages(
-      (previousMessages) => [
-        ...previousMessages,
-
-        {
-          role: 'user',
-          text: trimmed,
-        },
-      ]
-    );
-
-
-    // -----------------------------------------------
-    // Clear input
-    // -----------------------------------------------
+    setMessages((previousMessages) => [
+      ...previousMessages,
+      { role: 'user', text: trimmed, time: getTime() },
+    ]);
 
     setInput('');
-
-
-    // -----------------------------------------------
-    // Loading
-    // -----------------------------------------------
-
     setIsLoading(true);
-
 
     try {
 
-      console.log(
-        'Sending message to Vercel API:',
-        trimmed
-      );
-
-
-      // =================================================
-      // API REQUEST
-      // =================================================
-
-      const response =
-        await fetch(
-          CHATBOT_URL,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json',
-            },
-
-            body: JSON.stringify({
-              message: trimmed,
-            }),
-          }
-        );
-
-
-      console.log(
-        'Vercel API response status:',
-        response.status
-      );
-
-
-      // =================================================
-      // READ RESPONSE
-      // =================================================
+      const response = await fetch(CHATBOT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: trimmed }),
+      });
 
       let data;
 
       try {
-
-        data =
-          await response.json();
-
+        data = await response.json();
       } catch (error) {
-
-        console.error(
-          'Response JSON error:',
-          error
-        );
-
-        throw new Error(
-          'Invalid response received from chatbot server.'
-        );
+        throw new Error('Invalid response received from chatbot server.');
       }
-
-
-      console.log(
-        'Vercel chatbot response:',
-        data
-      );
-
-
-      // =================================================
-      // SERVER ERROR
-      // =================================================
 
       if (!response.ok) {
-
-        throw new Error(
-          data?.error ||
-          'Chatbot server returned an error.'
-        );
+        throw new Error(data?.error || 'Chatbot server returned an error.');
       }
 
+      const reply = data?.reply || "Sorry, I couldn't generate a response.";
 
-      // =================================================
-      // GET REPLY
-      // =================================================
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        { role: 'bot', text: reply, time: getTime() },
+      ]);
 
-      const reply =
-        data?.reply ||
-        "Sorry, I couldn't generate a response.";
-
-
-      // =================================================
-      // ADD BOT MESSAGE
-      // =================================================
-
-      setMessages(
-        (previousMessages) => [
-          ...previousMessages,
-
-          {
-            role: 'bot',
-            text: reply,
-          },
-        ]
-      );
-
+      if (!isOpen) {
+        setHasNewMessage(true);
+      }
 
     } catch (error) {
-
-      console.error(
-        'Chatbot error:',
-        error
-      );
-
-
-      // =================================================
-      // ERROR MESSAGE
-      // =================================================
 
       let errorMessage =
         "Couldn't reach the barista bot right now. Please try again.";
 
+      const errorText = error?.message?.toLowerCase() || '';
 
-      const errorText =
-        error?.message?.toLowerCase() ||
-        '';
-
-
-      // =================================================
-      // NETWORK ERROR
-      // =================================================
-
-      if (
-        errorText.includes(
-          'failed to fetch'
-        ) ||
-        errorText.includes(
-          'network'
-        )
-      ) {
-
-        errorMessage =
-          'Unable to connect to the chatbot server. Please try again.';
+      if (errorText.includes('failed to fetch') || errorText.includes('network')) {
+        errorMessage = 'Unable to connect to the chatbot server. Please try again.';
+      } else if (errorText.includes('groq api key') || errorText.includes('not configured')) {
+        errorMessage = 'The chatbot API is not configured correctly on Vercel.';
+      } else if (errorText.includes('ai service')) {
+        errorMessage = 'The AI service is temporarily unavailable. Please try again.';
+      } else if (errorText.includes('message string')) {
+        errorMessage = 'Please enter a valid message.';
+      } else if (errorText.includes('message too long')) {
+        errorMessage = 'Your message is too long. Please keep it under 500 characters.';
       }
 
-
-      // =================================================
-      // GROQ API KEY ERROR
-      // =================================================
-
-      else if (
-        errorText.includes(
-          'groq api key'
-        ) ||
-        errorText.includes(
-          'not configured'
-        )
-      ) {
-
-        errorMessage =
-          'The chatbot API is not configured correctly on Vercel.';
-      }
-
-
-      // =================================================
-      // AI SERVICE ERROR
-      // =================================================
-
-      else if (
-        errorText.includes(
-          'ai service'
-        )
-      ) {
-
-        errorMessage =
-          'The AI service is temporarily unavailable. Please try again.';
-      }
-
-
-      // =================================================
-      // INVALID MESSAGE
-      // =================================================
-
-      else if (
-        errorText.includes(
-          'message string'
-        )
-      ) {
-
-        errorMessage =
-          'Please enter a valid message.';
-      }
-
-
-      // =================================================
-      // MESSAGE TOO LONG
-      // =================================================
-
-      else if (
-        errorText.includes(
-          'message too long'
-        )
-      ) {
-
-        errorMessage =
-          'Your message is too long. Please keep it under 500 characters.';
-      }
-
-
-      // =================================================
-      // ADD ERROR MESSAGE
-      // =================================================
-
-      setMessages(
-        (previousMessages) => [
-          ...previousMessages,
-
-          {
-            role: 'bot',
-            text: errorMessage,
-          },
-        ]
-      );
-
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        { role: 'bot', text: errorMessage, time: getTime(), isError: true },
+      ]);
 
     } finally {
-
       setIsLoading(false);
     }
   };
@@ -342,14 +169,8 @@ const Chatbot = () => {
   // ===================================================
 
   const handleKeyDown = (event) => {
-
-    if (
-      event.key === 'Enter' &&
-      !event.shiftKey
-    ) {
-
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-
       sendMessage();
     }
   };
@@ -360,11 +181,7 @@ const Chatbot = () => {
   // ===================================================
 
   const toggleChatbot = () => {
-
-    setIsOpen(
-      (previousState) =>
-        !previousState
-    );
+    setIsOpen((previousState) => !previousState);
   };
 
 
@@ -380,48 +197,35 @@ const Chatbot = () => {
 
       <button
         type="button"
-
-        className={`chatbot-toggle ${
-          isOpen ? 'open' : ''
-        }`}
-
-        onClick={
-          toggleChatbot
-        }
-
-        aria-label={
-          isOpen
-            ? 'Close chat'
-            : 'Open chat'
-        }
+        className={`chatbot-toggle ${isOpen ? 'open' : ''}`}
+        onClick={toggleChatbot}
+        aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
-
         {isOpen ? (
-
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 22 22"
-            fill="none"
-          >
-
+          <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
             <path
               d="M4 4L18 18M18 4L4 18"
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
             />
-
           </svg>
-
         ) : (
-
-          <span className="chatbot-toggle-icon">
-            ☕
+          <span className="chatbot-toggle-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H9l-4 3.5v-3.5H5.5C4.67 16 4 15.33 4 14.5v-10Z"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              <circle cx="8.3" cy="9.3" r="1.05" fill="currentColor" />
+              <circle cx="12" cy="9.3" r="1.05" fill="currentColor" />
+              <circle cx="15.7" cy="9.3" r="1.05" fill="currentColor" />
+            </svg>
           </span>
-
         )}
-
+        {!isOpen && hasNewMessage && <span className="chatbot-toggle-dot" />}
       </button>
 
 
@@ -429,36 +233,59 @@ const Chatbot = () => {
           CHAT WINDOW
       ========================================== */}
 
-      <div
-        className={`chatbot-window ${
-          isOpen ? 'open' : ''
-        }`}
-      >
+      <div className={`chatbot-window ${isOpen ? 'open' : ''}`} role="dialog" aria-label="Brew Haven chat">
 
         {/* =======================================
             HEADER
         ======================================== */}
 
         <div className="chatbot-header">
-
-          <span className="chatbot-header-icon">
-            ☕
-          </span>
-
-
-          <div>
-
-            <p className="chatbot-header-title">
-              Brew Haven Barista
-            </p>
-
-
-            <p className="chatbot-header-sub">
-              Usually replies instantly
-            </p>
-
+          <div className="chatbot-header-avatar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 8h13a2 2 0 0 1 2 2v1.5a3.5 3.5 0 0 1-3.5 3.5H17"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M4 8h13v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Z"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M7 4.5c.3.7-.2 1-.2 1.6M10.5 4.5c.3.7-.2 1-.2 1.6"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </svg>
           </div>
 
+          <div className="chatbot-header-text">
+            <p className="chatbot-header-title">Brew Haven Barista</p>
+            <p className="chatbot-header-sub">
+              <span className="chatbot-status-dot" />
+              Online now
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="chatbot-header-close"
+            onClick={toggleChatbot}
+            aria-label="Close chat"
+          >
+            <svg width="16" height="16" viewBox="0 0 22 22" fill="none">
+              <path
+                d="M4 4L18 18M18 4L4 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
 
@@ -468,49 +295,56 @@ const Chatbot = () => {
 
         <div className="chatbot-messages">
 
-          {messages.map(
-            (message, index) => (
-
+          {messages.map((message, index) => (
+            <div
+              key={`${message.role}-${index}`}
+              className={`chatbot-row ${message.role}`}
+            >
               <div
-                key={`${message.role}-${index}`}
-
-                className={`chatbot-bubble ${
-                  message.role
+                className={`chatbot-bubble ${message.role} ${
+                  message.isError ? 'error' : ''
                 }`}
               >
                 {message.text}
               </div>
+              <span className="chatbot-time">{message.time}</span>
+            </div>
+          ))}
 
-            )
+          {/* =====================================
+              QUICK REPLIES
+          ====================================== */}
+
+          {messages.length === 1 && !isLoading && (
+            <div className="chatbot-quick-replies">
+              {QUICK_REPLIES.map((quickReply) => (
+                <button
+                  key={quickReply}
+                  type="button"
+                  className="chatbot-quick-reply"
+                  onClick={() => sendMessage(quickReply)}
+                >
+                  {quickReply}
+                </button>
+              ))}
+            </div>
           )}
-
 
           {/* =====================================
               TYPING
           ====================================== */}
 
           {isLoading && (
-
-            <div
-              className="
-                chatbot-bubble
-                bot
-                chatbot-typing
-              "
-            >
-
-              <span></span>
-              <span></span>
-              <span></span>
-
+            <div className="chatbot-row bot">
+              <div className="chatbot-bubble bot chatbot-typing">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
             </div>
-
           )}
 
-
-          <div
-            ref={messagesEndRef}
-          />
+          <div ref={messagesEndRef} />
 
         </div>
 
@@ -522,70 +356,37 @@ const Chatbot = () => {
         <div className="chatbot-input-row">
 
           <input
+            ref={inputRef}
             type="text"
-
             value={input}
-
-            onChange={(event) =>
-              setInput(
-                event.target.value
-              )
-            }
-
-            onKeyDown={
-              handleKeyDown
-            }
-
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Ask about the menu..."
-
             className="chatbot-input"
-
             disabled={isLoading}
-
             maxLength={500}
           />
 
-
-          {/* =====================================
-              SEND BUTTON
-          ====================================== */}
-
           <button
             type="button"
-
             className="chatbot-send"
-
-            onClick={
-              sendMessage
-            }
-
-            disabled={
-              isLoading ||
-              !input.trim()
-            }
-
+            onClick={() => sendMessage()}
+            disabled={isLoading || !input.trim()}
             aria-label="Send message"
           >
-
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-            >
-
+            <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
               <path
                 d="M2 9L16 2L11 16L8 10L2 9Z"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinejoin="round"
               />
-
             </svg>
-
           </button>
 
         </div>
+
+        <p className="chatbot-footer-note">Brew Haven · AI barista, replies may vary</p>
 
       </div>
     </>
