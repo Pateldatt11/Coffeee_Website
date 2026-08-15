@@ -8,7 +8,7 @@ import {
 import Chart from 'chart.js/auto';
 import { auth, db } from '../firebase';
 import { coffeeMenu } from '../data/menuData'; // used ONLY to one-time seed Firestore
-import './AdminPanel.css';
+import './Adminpanel.css'
 
 // ============================================================
 // ACCESS CONTROL
