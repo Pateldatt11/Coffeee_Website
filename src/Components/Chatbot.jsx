@@ -14,10 +14,10 @@ import './Chatbot.css';
 const CHATBOT_URL = '/api/chat';
 
 const QUICK_REPLIES = [
-  'Menu ane prices batavo',
-  'Aaj kitna baje band hoga?',
-  'Best seller कौनसा आहे?',
-  'Delivery available che?',
+  'Show me the menu & prices',
+  'What time do you close today?',
+  "What's your best seller?",
+  'Do you deliver?',
 ];
 
 
@@ -34,7 +34,7 @@ const Chatbot = () => {
     {
       role: 'bot',
       text:
-        "Hey there! 👋 I'm Bru, your Brew Haven barista. Ask me anything — menu, hours, recommendations. Hindi, English, Marathi, Gujarati — jaadu bhasha ma vaat karo, hu samju chu!",
+        "Hey there! 👋 I'm Bru, your Brew Haven barista. Ask me about the menu, prices, hours, or get a coffee recommendation.",
       time: getTime(),
     },
   ]);
@@ -396,7 +396,7 @@ const Chatbot = () => {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type in any language..."
+            placeholder="Ask about the menu, hours..."
             className="chatbot-input"
             disabled={isLoading}
             maxLength={500}
