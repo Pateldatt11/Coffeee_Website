@@ -5,12 +5,12 @@ export default async function handler(req, res) {
   // CORS
   // =====================================================
 
+  const origin = req.headers.origin;
+
   const allowedOrigins = [
     'http://localhost:5173',
     'https://coffeeebrewwebsite.vercel.app',
   ];
-
-  const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
     res.setHeader(
@@ -34,18 +34,16 @@ export default async function handler(req, res) {
     'Origin'
   );
 
-
   // =====================================================
-  // Handle Preflight
+  // OPTIONS
   // =====================================================
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
 
-
   // =====================================================
-  // POST Only
+  // POST ONLY
   // =====================================================
 
   if (req.method !== 'POST') {
@@ -54,14 +52,12 @@ export default async function handler(req, res) {
     });
   }
 
-
   try {
     // ===================================================
-    // Get Message
+    // GET MESSAGE
     // ===================================================
 
     const userMessage = req.body?.message;
-
 
     if (
       !userMessage ||
@@ -72,46 +68,50 @@ export default async function handler(req, res) {
       });
     }
 
-
-    // ===================================================
-    // Message Length
-    // ===================================================
-
     if (userMessage.length > 500) {
       return res.status(400).json({
         error: 'Message too long.',
       });
     }
 
-
     // ===================================================
-    // Gemini API Key
+    // GROQ API KEY
     // ===================================================
 
-    const apiKey =
-      process.env.GEMINI_API_KEY;
-
+    const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
       console.error(
-        'GEMINI_API_KEY is not configured.'
+        'GROQ_API_KEY is not configured.'
       );
 
       return res.status(500).json({
         error:
-          'Gemini API key is not configured on Vercel.',
+          'Groq API key is not configured on Vercel.',
       });
     }
 
-
     // ===================================================
-    // System Instruction
+    // GROQ REQUEST
     // ===================================================
 
-    const systemInstruction = {
-      parts: [
-        {
-          text: `
+    const response = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+
+          messages: [
+            {
+              role: 'system',
+              content: `
 You are the friendly virtual barista for Brew Haven, a coffee shop.
 
 Answer questions about:
@@ -128,72 +128,53 @@ If the question is unrelated to the coffee shop,
 politely redirect the customer back to coffee-related topics.
 
 Keep replies under 3 sentences unless the customer asks for more detail.
-          `.trim(),
-        },
-      ],
-    };
+              `.trim(),
+            },
 
-
-    // ===================================================
-    // Gemini API Request
-    // ===================================================
-
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-
-        body: JSON.stringify({
-          systemInstruction,
-
-          contents: [
             {
               role: 'user',
-
-              parts: [
-                {
-                  text: userMessage,
-                },
-              ],
+              content: userMessage,
             },
           ],
+
+          temperature: 0.7,
+
+          max_tokens: 200,
         }),
       }
     );
 
-
     // ===================================================
-    // Read Gemini Response
+    // READ RESPONSE
     // ===================================================
 
     const responseText =
       await response.text();
 
+    console.log(
+      'Groq status:',
+      response.status
+    );
 
     // ===================================================
-    // Gemini Error
+    // GROQ ERROR
     // ===================================================
 
     if (!response.ok) {
       console.error(
-        'Gemini API error:',
+        'Groq API error:',
         response.status,
         responseText
       );
 
       return res.status(502).json({
-        error: 'Gemini service failed.',
+        error:
+          'AI service failed.',
       });
     }
 
-
     // ===================================================
-    // Parse JSON
+    // PARSE JSON
     // ===================================================
 
     let data;
@@ -202,42 +183,37 @@ Keep replies under 3 sentences unless the customer asks for more detail.
       data = JSON.parse(responseText);
     } catch (error) {
       console.error(
-        'Gemini JSON parse error:',
+        'Groq JSON parse error:',
         error
       );
 
       return res.status(502).json({
         error:
-          'Invalid response received from Gemini.',
+          'Invalid response received from AI service.',
       });
     }
 
-
     // ===================================================
-    // Get Gemini Reply
+    // GET REPLY
     // ===================================================
 
     const reply =
-      data?.candidates?.[0]
-        ?.content?.parts?.[0]
-        ?.text;
-
+      data?.choices?.[0]?.message?.content;
 
     if (!reply) {
       console.error(
-        'Gemini returned no text:',
+        'Groq returned no reply:',
         JSON.stringify(data)
       );
 
       return res.status(502).json({
         error:
-          'Gemini did not return a response.',
+          'AI service did not return a response.',
       });
     }
 
-
     // ===================================================
-    // Success
+    // SUCCESS
     // ===================================================
 
     return res.status(200).json({
@@ -253,7 +229,7 @@ Keep replies under 3 sentences unless the customer asks for more detail.
 
     return res.status(500).json({
       error:
-        'Something went wrong talking to the chatbot.',
+        'Something went wrong talking to the AI service.',
     });
   }
 }
