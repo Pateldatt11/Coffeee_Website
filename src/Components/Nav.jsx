@@ -197,16 +197,10 @@ const Nav = () => {
         {isAuthPage ? (
           <ul className="nav-menu auth-page-menu active">
             <li className="auth-buttons">
-              <Link
-                to="/login"
-                className={`nav-link login-btn ${location.pathname === "/login" ? "active" : ""}`}
-              >
+              <Link to="/login" className="nav-link login-btn">
                 Login
               </Link>
-              <Link
-                to="/signup"
-                className={`nav-link signup-btn ${location.pathname === "/signup" ? "active" : ""}`}
-              >
+              <Link to="/signup" className="nav-link signup-btn">
                 Sign Up
               </Link>
             </li>
