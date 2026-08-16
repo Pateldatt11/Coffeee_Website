@@ -3,7 +3,9 @@ import { useNavigate, Navigate, Link } from 'react-router-dom';
 import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -24,6 +26,16 @@ import './Login.css';
 // IMPORTANT: Also set a Firestore Security Rule so only role === "admin"
 // documents/collections can be read/written by an admin. Without a rule,
 // a user could bypass this UI check by calling Firestore directly.
+
+// ── Why this check exists ──
+// signInWithPopup is unreliable on mobile browsers: popups get blocked,
+// silently closed, or fail with a generic error. Firebase's own docs
+// recommend signInWithRedirect on mobile. This just checks the device
+// type so we can pick the right method automatically.
+const isMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent);
+};
 
 const Login = () => {
   const navigate = useNavigate();
@@ -82,6 +94,58 @@ const Login = () => {
     setFormData({ email: '', password: '' });
   }, []);
 
+  // Checks Firestore for this user's role and returns true if admin
+  const checkIsAdmin = async (uid) => {
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      const role = snap.exists() ? snap.data().role : null;
+      return role === 'admin';
+    } catch (err) {
+      console.error('Role check failed:', err);
+      return false;
+    }
+  };
+
+  const saveUserAndFinish = async (firebaseUser, provider) => {
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName || '',
+      email: firebaseUser.email || '',
+      photoURL: firebaseUser.photoURL || '',
+      provider,
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    const admin = await checkIsAdmin(firebaseUser.uid);
+    setIsAdmin(admin);
+    setErrors({});
+    setFormData({ email: '', password: '' });
+    setSubmitted(true);
+  };
+
+  // ── Runs once when the page loads. Catches the user coming BACK from
+  // Google after a redirect-based sign-in (used on mobile). Without this,
+  // a mobile user would be sent to Google, sent back, and nothing would
+  // happen — because the popup flow never fires on redirect. ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          setGoogleLoading(true);
+          await saveUserAndFinish(result.user, 'google');
+        }
+      } catch (error) {
+        console.error('Google redirect sign-in error:', error);
+        setErrors({ firebase: 'Google sign-in failed. Please try again.' });
+      } finally {
+        setGoogleLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── If a session already exists, don't show the login form at all ──
   if (authLoading) {
     return (
@@ -109,18 +173,6 @@ const Login = () => {
   if (user && !submitted) {
     return <Navigate to="/" replace />;
   }
-
-  // Checks Firestore for this user's role and returns true if admin
-  const checkIsAdmin = async (uid) => {
-    try {
-      const snap = await getDoc(doc(db, 'users', uid));
-      const role = snap.exists() ? snap.data().role : null;
-      return role === 'admin';
-    } catch (err) {
-      console.error('Role check failed:', err);
-      return false;
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -178,24 +230,24 @@ const Login = () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
+    // Mobile: redirect flow (page navigates to Google and back — no popup).
+    // The result is picked up by the getRedirectResult useEffect above.
+    if (isMobileDevice()) {
+      try {
+        await signInWithRedirect(auth, provider);
+        // Execution stops here — browser navigates away.
+      } catch (error) {
+        console.error('Google redirect start error:', error);
+        setErrors({ firebase: 'Google sign-in failed. Please try again.' });
+        setGoogleLoading(false);
+      }
+      return;
+    }
+
+    // Desktop: popup flow (unchanged, works fine here).
     try {
       const result = await signInWithPopup(auth, provider);
-      await setDoc(doc(db, 'users', result.user.uid), {
-        uid: result.user.uid,
-        name: result.user.displayName || '',
-        email: result.user.email || '',
-        photoURL: result.user.photoURL || '',
-        provider: 'google',
-        lastLoginAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      const admin = await checkIsAdmin(result.user.uid);
-      setIsAdmin(admin);
-
-      setErrors({});
-      setFormData({ email: '', password: '' });
-      setSubmitted(true);
+      await saveUserAndFinish(result.user, 'google');
     } catch (error) {
       console.error("Google Login Error:", error);
       let msg = "Google sign-in failed. Please try again.";
@@ -358,6 +410,8 @@ const Login = () => {
 };
 
 export default Login;
+
+
 //   Forget Password Karine Spam , Inbox , Trash Mail Check Karvo
 
 

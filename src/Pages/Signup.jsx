@@ -4,12 +4,24 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
 import './Signup.css';
+
+// ── Why this check exists ──
+// signInWithPopup is unreliable on mobile browsers: popups get blocked,
+// silently closed, or fail with a generic error. Firebase's own docs
+// recommend signInWithRedirect on mobile. This just checks the device
+// type so we can pick the right method automatically.
+const isMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent);
+};
 
 // ── Generates a strong password using the browser's CRYPTOGRAPHIC random
 // number generator (crypto.getRandomValues), not Math.random(). Math.random()
@@ -95,6 +107,41 @@ const Signup = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const saveUserAndGo = async (firebaseUser) => {
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName || formData.name.trim() || 'Google User',
+      email: firebaseUser.email || formData.email.trim(),
+      photoURL: firebaseUser.photoURL || '',
+      provider: 'google',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    navigate('/');
+  };
+
+  // ── Runs once when the page loads. Catches the user coming BACK from
+  // Google after a redirect-based sign-up (used on mobile). Without this,
+  // a mobile user would be sent to Google, sent back, and nothing would
+  // happen — because the popup flow never fires on redirect. ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          setGoogleLoading(true);
+          await saveUserAndGo(result.user);
+        }
+      } catch (error) {
+        console.error('Google redirect sign-up error:', error);
+        setErrors({ firebase: 'Google sign-in failed. Please try again.' });
+      } finally {
+        setGoogleLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── If already logged in → go to Home ──
@@ -194,18 +241,25 @@ const Signup = () => {
     setErrors({});
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+
+    // Mobile: redirect flow (page navigates to Google and back — no popup).
+    // The result is picked up by the getRedirectResult useEffect above.
+    if (isMobileDevice()) {
+      try {
+        await signInWithRedirect(auth, provider);
+        // Execution stops here — browser navigates away.
+      } catch (error) {
+        console.error('Google redirect start error:', error);
+        setErrors({ firebase: 'Google sign-in failed. Please try again.' });
+        setGoogleLoading(false);
+      }
+      return;
+    }
+
+    // Desktop: popup flow (unchanged, works fine here).
     try {
       const result = await signInWithPopup(auth, provider);
-      await setDoc(doc(db, 'users', result.user.uid), {
-        uid: result.user.uid,
-        name: result.user.displayName || formData.name.trim() || 'Google User',
-        email: result.user.email || formData.email.trim(),
-        photoURL: result.user.photoURL || '',
-        provider: 'google',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      navigate('/');
+      await saveUserAndGo(result.user);
     } catch (error) {
       let msg = 'Google sign-in failed. Please try again.';
       if (error.code === 'auth/popup-blocked')                msg = 'Popup was blocked. Please allow popups and try again.';
