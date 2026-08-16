@@ -71,6 +71,15 @@ const FAQ = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [openIndex, setOpenIndex] = useState(null); // `${category}-${i}` currently expanded
 
+  // Tracks which fade-in elements have scrolled into view, keyed by a stable
+  // id we set as a data-attribute on each element. Using React state (instead
+  // of directly classList.add-ing 'visible' on the DOM node) means the
+  // "visible" flag survives re-renders — previously, clicking an accordion
+  // item changed `openIndex`, React re-rendered, and the className prop
+  // recomputed WITHOUT the imperatively-added 'visible' class, wiping it out
+  // and snapping opacity back to 0 (the "answer goes invisible on click" bug).
+  const [visibleIds, setVisibleIds] = useState(() => new Set());
+
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
@@ -95,7 +104,15 @@ const FAQ = () => {
     hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
 
     const observer = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+      (entries) => entries.forEach(e => {
+        if (e.isIntersecting) {
+          const id = e.target.dataset.fadeId;
+          if (id) {
+            setVisibleIds(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
+          }
+          observer.unobserve(e.target);
+        }
+      }),
       { threshold: 0.1 }
     );
     document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
@@ -140,12 +157,18 @@ const FAQ = () => {
       <section className="faq-section">
         <div className="faq-container">
 
-          <div className="section-header fade-in">
+          <div
+            className={`section-header fade-in ${visibleIds.has('section-header') ? 'visible' : ''}`}
+            data-fade-id="section-header"
+          >
             <p className="section-tag">Help Center</p>
             <h2>Find Your <em>Answer</em></h2>
           </div>
 
-          <div className="filter-bar fade-in">
+          <div
+            className={`filter-bar fade-in ${visibleIds.has('filter-bar') ? 'visible' : ''}`}
+            data-fade-id="filter-bar"
+          >
             {allCategories.map((cat) => (
               <button
                 key={cat}
@@ -159,7 +182,12 @@ const FAQ = () => {
 
           {visibleCategories.map((category) => (
             <div className="faq-group" key={category}>
-              <h3 className="faq-group-title fade-in">{category}</h3>
+              <h3
+                className={`faq-group-title fade-in ${visibleIds.has(`title-${category}`) ? 'visible' : ''}`}
+                data-fade-id={`title-${category}`}
+              >
+                {category}
+              </h3>
 
               <div className="faq-list">
                 {FAQ_DATA[category].map((item, i) => {
@@ -167,8 +195,9 @@ const FAQ = () => {
                   const isOpen = openIndex === key;
                   return (
                     <div
-                      className={`faq-item fade-in ${isOpen ? 'open' : ''}`}
+                      className={`faq-item fade-in ${visibleIds.has(key) ? 'visible' : ''} ${isOpen ? 'open' : ''}`}
                       key={key}
+                      data-fade-id={key}
                       style={{ transitionDelay: `${(i % 6) * 0.06}s` }}
                     >
                       <button
@@ -194,7 +223,10 @@ const FAQ = () => {
             </div>
           ))}
 
-          <div className="faq-cta fade-in">
+          <div
+            className={`faq-cta fade-in ${visibleIds.has('faq-cta') ? 'visible' : ''}`}
+            data-fade-id="faq-cta"
+          >
             <p className="section-tag" style={{ marginBottom: '0.6rem' }}>Still stuck?</p>
             <h3>Ask Bru, our barista chatbot ☕</h3>
             <p className="faq-cta-sub">Bottom-left corner of the screen — available anytime.</p>
