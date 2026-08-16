@@ -6,7 +6,7 @@ import Home from './Pages/Home';
 import './App.css';
 import Menu from './Pages/Menu';
 import About from './Pages/About';
-import FAQ from './Pages/FAQ';
+import FAQ from './Pages/Faq';
 import OrderOnline from './Pages/OrderOnline';
 import Signup from './Pages/Signup';
 import Login from './Pages/Login';
