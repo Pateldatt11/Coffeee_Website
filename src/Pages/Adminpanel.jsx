@@ -21,8 +21,8 @@ import './Adminpanel.css'
 //     allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
 //   }
 //
-// Do this for orders, menu, and users collections. Without the
-// rule, this file is UI only — not real security.
+// Do this for orders, menu, users, AND feedback collections.
+// Without the rule, this file is UI only — not real security.
 //
 // ANALYTICS NOTE:
 // "Active right now" (true live presence) is NOT included here —
@@ -48,12 +48,13 @@ const AdminPanel = () => {
   const [authorized, setAuthorized] = useState(false);
   const [adminUid, setAdminUid] = useState(null);
   const [adminEmail, setAdminEmail] = useState('');
-  const [activeTab, setActiveTab] = useState('orders'); // orders | menu | users | analytics
+  const [activeTab, setActiveTab] = useState('orders'); // orders | menu | users | feedback | analytics
 
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [users, setUsers] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [feedbackList, setFeedbackList] = useState([]);
   const [seeding, setSeeding] = useState(false);
 
   const [newItem, setNewItem] = useState({ name: '', category: '', price: '', img: '' });
@@ -167,7 +168,15 @@ const AdminPanel = () => {
       (err) => console.error('Visits listener error:', err)
     );
 
-    return () => { unsubOrders(); unsubMenu(); unsubUsers(); unsubVisits(); };
+    // Order feedback (star ratings + comments), submitted from Profile.jsx
+    // after an order's status is set to "completed".
+    const unsubFeedback = onSnapshot(
+      query(collection(db, 'feedback'), orderBy('createdAt', 'desc'), limit(LIST_LIMIT)),
+      (snap) => setFeedbackList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error('Feedback listener error:', err)
+    );
+
+    return () => { unsubOrders(); unsubMenu(); unsubUsers(); unsubVisits(); unsubFeedback(); };
   }, [authorized]);
 
   const handleLogout = async () => { await signOut(auth); navigate('/login'); };
@@ -284,6 +293,37 @@ const AdminPanel = () => {
       console.error('Failed to update user role:', err);
       alert('Could not update user role.');
     }
+  };
+
+  // ================= FEEDBACK (derived) =================
+  // Sorted worst-first (lowest rating at the top) so problem orders are
+  // the first thing an admin sees, not buried under 5-star reviews.
+  const feedbackStats = useMemo(() => {
+    const total = feedbackList.length;
+    const avg = total
+      ? (feedbackList.reduce((sum, f) => sum + (Number(f.rating) || 0), 0) / total).toFixed(1)
+      : '0.0';
+
+    const distribution = [5, 4, 3, 2, 1].map((star) => ({
+      star,
+      count: feedbackList.filter((f) => Number(f.rating) === star).length
+    }));
+
+    const sorted = [...feedbackList].sort((a, b) => (Number(a.rating) || 0) - (Number(b.rating) || 0));
+
+    return { total, avg, distribution, sorted };
+  }, [feedbackList]);
+
+  const renderStars = (rating) => {
+    const r = Number(rating) || 0;
+    return '★'.repeat(r) + '☆'.repeat(Math.max(0, 5 - r));
+  };
+
+  const formatFeedbackDate = (value) => {
+    if (!value) return '—';
+    const d = value?.toDate ? value.toDate() : new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   // ================= ANALYTICS (derived, no extra reads) =================
@@ -454,6 +494,9 @@ const AdminPanel = () => {
         <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
           Users <span className="admin-tab-count">{users.length}</span>
         </button>
+        <button className={`admin-tab ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>
+          Feedback <span className="admin-tab-count">{feedbackList.length}</span>
+        </button>
         <button className={`admin-tab ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
           Analytics
         </button>
@@ -607,6 +650,63 @@ const AdminPanel = () => {
                             <option value="admin">admin</option>
                           </select>
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= FEEDBACK TAB ================= */}
+        {activeTab === 'feedback' && (
+          <div className="admin-panel-block">
+            <div className="admin-stats-row">
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Average Rating</p>
+                <h3 className="admin-stat-value">{feedbackStats.avg} / 5</h3>
+                <p className="admin-stat-sub">Across {feedbackStats.total} reviews</p>
+              </div>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Total Reviews</p>
+                <h3 className="admin-stat-value">{feedbackStats.total}</h3>
+                <p className="admin-stat-sub">Submitted by customers</p>
+              </div>
+              {feedbackStats.distribution.map(({ star, count }) => (
+                <div className="admin-stat-card" key={star}>
+                  <p className="admin-stat-label">{star} Star{star > 1 ? 's' : ''}</p>
+                  <h3 className="admin-stat-value">{count}</h3>
+                  <p className="admin-stat-sub">
+                    {feedbackStats.total ? Math.round((count / feedbackStats.total) * 100) : 0}% of reviews
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {feedbackList.length === 0 ? (
+              <p className="admin-empty">No feedback submitted yet.</p>
+            ) : (
+              <div className="admin-table-wrap" style={{ marginTop: '1.5rem' }}>
+                {/* Sorted worst-first — low ratings need attention first */}
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Customer</th>
+                      <th>Items</th>
+                      <th>Rating</th>
+                      <th>Comment</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feedbackStats.sorted.map((f) => (
+                      <tr key={f.id} className={Number(f.rating) <= 2 ? 'admin-row-flagged' : ''}>
+                        <td><strong>{f.customerName || '—'}</strong></td>
+                        <td>{(f.items || []).join(', ') || '—'}</td>
+                        <td className="admin-rating-cell">{renderStars(f.rating)}</td>
+                        <td>{f.comment || <span className="admin-subtext">No comment</span>}</td>
+                        <td>{formatFeedbackDate(f.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

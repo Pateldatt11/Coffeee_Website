@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Profile.css';
 import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 // Payment method labels + colors (kept inside the same warm coffee palette
@@ -48,6 +48,17 @@ const Profile = () => {
 
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+
+  // ── Feedback modal state (order rating: taste, presentation etc.) ──
+  // feedbackOrder holds the order currently being rated, or null when
+  // the modal is closed. Kept separate from `orders` so typing a
+  // comment doesn't re-render the whole order list on every keystroke.
+  const [feedbackOrder, setFeedbackOrder] = useState(null);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackHoverRating, setFeedbackHoverRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   // ── Cursor dot/ring + scroll fade-in, matching Menu.jsx / OrderOnline.jsx ──
   const dotRef = useRef(null);
@@ -161,7 +172,7 @@ const Profile = () => {
     document.addEventListener('mousemove', onMouseMove);
 
     const hoverTargets = document.querySelectorAll(
-      'button, a, .photo-dropzone, .order-item, .order-line-item'
+      'button, a, .photo-dropzone, .order-item, .order-line-item, .feedback-star'
     );
     hoverTargets.forEach((el) => {
       el.addEventListener('mouseenter', addHover);
@@ -187,9 +198,9 @@ const Profile = () => {
       });
       observer.disconnect();
     };
-    // Re-scan whenever orders/edit-mode render new DOM nodes that need
-    // hover/fade-in wiring (cards mount async after the orders fetch).
-  }, [onMouseMove, addHover, rmvHover, orders, editMode, loading, ordersLoading]);
+    // Re-scan whenever orders/edit-mode/feedback-modal render new DOM
+    // nodes that need hover/fade-in wiring.
+  }, [onMouseMove, addHover, rmvHover, orders, editMode, loading, ordersLoading, feedbackOrder]);
 
   const displayName = profile.name || user?.displayName || user?.email?.split('@')[0] || 'Brewer';
 
@@ -320,6 +331,57 @@ const Profile = () => {
     phone: order.phone || profile.phone || '—',
     email: order.email || profile.email || '—',
   });
+
+  // ── Feedback: open modal for a specific order ──
+  const openFeedback = (order) => {
+    setFeedbackOrder(order);
+    setFeedbackRating(0);
+    setFeedbackHoverRating(0);
+    setFeedbackComment('');
+    setFeedbackSubmitted(false);
+  };
+
+  const closeFeedback = () => {
+    if (submittingFeedback) return; // don't let them close mid-submit
+    setFeedbackOrder(null);
+  };
+
+  // Saves to a NEW 'feedback' collection (separate from 'orders' so the
+  // admin panel can list/sort/average all feedback without scanning every
+  // order). Also flags the order itself with feedbackGiven: true so the
+  // "Rate your order" button doesn't show again for this order.
+  const submitFeedback = async () => {
+    if (!feedbackOrder || !user || feedbackRating === 0) return;
+    setSubmittingFeedback(true);
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        orderId: feedbackOrder.id,
+        userId: user.uid,
+        customerName: profile.name || displayName,
+        items: (feedbackOrder.items || []).map((i) => i.name).filter(Boolean),
+        rating: feedbackRating,
+        comment: feedbackComment.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      await updateDoc(doc(db, 'orders', feedbackOrder.id), { feedbackGiven: true });
+
+      // Update local state immediately so the button disappears without
+      // needing to re-fetch the whole order list.
+      setOrders((prev) =>
+        prev.map((o) => (o.id === feedbackOrder.id ? { ...o, feedbackGiven: true } : o))
+      );
+
+      setFeedbackSubmitted(true);
+      // Auto-close shortly after showing the "thanks" state.
+      setTimeout(() => setFeedbackOrder(null), 1400);
+    } catch (err) {
+      console.error('Feedback submit failed:', err);
+      alert('Could not submit your feedback. Please try again.');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
 
   if (authLoading || loading) {
     return (
@@ -468,6 +530,8 @@ const Profile = () => {
                 const meta = getPaymentMeta(order.paymentMethod);
                 const items = order.items || [];
                 const contact = getOrderContact(order);
+                const status = (order.status || 'placed').toLowerCase();
+                const canRate = status === 'completed' && !order.feedbackGiven;
 
                 return (
                   <li
@@ -479,7 +543,7 @@ const Profile = () => {
                     <div className="order-main">
                       <span className="order-id">#{order.id.slice(-6).toUpperCase()}</span>
                       <span className="order-date">{formatDate(order.createdAt)}</span>
-                      <span className={`status-badge status-${(order.status || 'placed').toLowerCase()}`}>
+                      <span className={`status-badge status-${status}`}>
                         {order.status || 'Placed'}
                       </span>
                     </div>
@@ -534,6 +598,18 @@ const Profile = () => {
                       <span className={`pay-badge ${meta.className}`}>{meta.label}</span>
                       <span className="order-total">Total: ₹{order.total ?? order.amount ?? '0'}</span>
                     </div>
+
+                    {/* Feedback CTA — only for completed orders not yet rated */}
+                    {canRate && (
+                      <div className="order-feedback-cta">
+                        <button className="nav-link signup-btn" onClick={() => openFeedback(order)}>
+                          ⭐ Rate this order
+                        </button>
+                      </div>
+                    )}
+                    {status === 'completed' && order.feedbackGiven && (
+                      <p className="order-feedback-done">✓ Thanks — you've rated this order</p>
+                    )}
                   </li>
                 );
               })}
@@ -541,6 +617,61 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {/* ── Feedback Modal ── */}
+      {feedbackOrder && (
+        <div className="details-overlay" onClick={closeFeedback}>
+          <div className="details-modal feedback-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="details-close" onClick={closeFeedback}>✕</button>
+
+            {feedbackSubmitted ? (
+              <div className="feedback-thanks">
+                <div className="success-icon">☕</div>
+                <h2>Thank <em>You!</em></h2>
+                <p>Your feedback helps us brew it better next time.</p>
+              </div>
+            ) : (
+              <div className="details-body">
+                <p className="category-tag">Order #{feedbackOrder.id.slice(-6).toUpperCase()}</p>
+                <h2>How was your coffee?</h2>
+
+                <div className="feedback-stars" role="radiogroup" aria-label="Rate your order">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className="feedback-star"
+                      aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                      onMouseEnter={() => setFeedbackHoverRating(star)}
+                      onMouseLeave={() => setFeedbackHoverRating(0)}
+                      onClick={() => setFeedbackRating(star)}
+                    >
+                      {(feedbackHoverRating || feedbackRating) >= star ? '★' : '☆'}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  className="form-input form-textarea feedback-comment"
+                  placeholder="Optional: tell us more — too sweet, too cold, perfect, etc."
+                  rows={3}
+                  value={feedbackComment}
+                  onChange={(e) => setFeedbackComment(e.target.value)}
+                />
+
+                <button
+                  className="primary-btn"
+                  disabled={feedbackRating === 0 || submittingFeedback}
+                  onClick={submitFeedback}
+                  style={{ width: '100%', marginTop: '1rem' }}
+                >
+                  {submittingFeedback ? 'Submitting…' : 'Submit Feedback'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

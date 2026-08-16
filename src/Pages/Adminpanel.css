@@ -275,7 +275,13 @@
   .admin-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-charts-grid { grid-template-columns: 1fr; }
 }
-
+.admin-row-flagged {
+  background: rgba(224, 112, 96, 0.08);
+}
+.admin-rating-cell {
+  color: var(--gold);
+  letter-spacing: 2px;
+}
 @media (max-width: 700px) {
   .admin-page { padding: 90px 1.2rem 2rem; }
   .admin-form-row { flex-direction: column; align-items: stretch; }
