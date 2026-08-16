@@ -4,6 +4,7 @@ import { addDoc, collection, serverTimestamp, onSnapshot, doc, updateDoc, increm
 import useRazorpay from '../hooks/useRazorpay';
 import { auth, db } from '../firebase';
 import { coffeeMenu } from '../data/menuData'; // fallback only, used until Firestore 'menu' is seeded
+import { generateBillPDF } from '../utils/generateBill';
 import './OrderOnline.css';
 
 const paymentMethods = [
@@ -79,6 +80,11 @@ const OrderOnline = () => {
   // "Order Placed" success — the customer already paid, so they need
   // their payment ID to get this manually resolved, not a lie.
   const [saveFailed, setSaveFailed] = useState(false);
+
+  // Holds the order data used to generate the downloadable bill.
+  // Built locally (not re-fetched from Firestore) so the "Download Bill"
+  // button works even in the saveFailed case, where nothing was saved.
+  const [placedOrder, setPlacedOrder] = useState(null);
 
   // ================= REWARDS: wallet + tokens =================
   // Live-subscribed so a balance change elsewhere (e.g. a referral
@@ -215,11 +221,30 @@ const OrderOnline = () => {
     ? menuItems
     : menuItems.filter(i => i.category === activeCategory);
 
+  // Builds the plain-object snapshot used to render the downloadable bill.
+  // Uses local state (cart, totals) rather than re-reading Firestore, so
+  // it works even when the Firestore write itself failed (saveFailed case).
+  const buildOrderForBill = (orderId, method, paymentId = '') => ({
+    id: orderId,
+    items: cart.map(item => ({
+      name: item.name, price: item.price, qty: item.qty, img: item.img || ''
+    })),
+    subtotal: totalPrice,
+    tokenDiscount: tokenDiscountAmount,
+    walletUsed: walletApplied,
+    tokensEarned,
+    amount: finalTotal,
+    paymentMethod: method,
+    paymentId,
+    createdAt: new Date(),
+  });
+
   // FIX: previously this caught its own errors and did nothing further,
   // so the caller had no way to know the write failed. Now it re-throws,
   // so handleOrder can react properly instead of blindly showing success.
+  // Also returns the new Firestore doc ID so the bill can reference it.
   const persistOrder = async ({ method, paymentId = '' }) => {
-    await addDoc(collection(db, 'orders'), {
+    const docRef = await addDoc(collection(db, 'orders'), {
       userId: user?.uid || null,
       customerName: formData.name,
       email: formData.email,
@@ -266,6 +291,8 @@ const OrderOnline = () => {
         console.error('Wallet/token settlement failed:', err);
       }
     }
+
+    return docRef.id;
   };
 
   const handleOrder = (e) => {
@@ -277,9 +304,10 @@ const OrderOnline = () => {
     if (selectedPayment === 'cod') {
       (async () => {
         try {
-          await persistOrder({ method: 'Cash on Delivery' });
+          const orderId = await persistOrder({ method: 'Cash on Delivery' });
           setSaveFailed(false);
           setPaymentDetails({ method: 'Cash on Delivery', amount: finalTotal });
+          setPlacedOrder(buildOrderForBill(orderId, 'Cash on Delivery'));
           setOrderPlaced(true);
           setCartOpen(false);
         } catch (error) {
@@ -297,9 +325,10 @@ const OrderOnline = () => {
       if (finalTotal <= 0) {
         (async () => {
           try {
-            await persistOrder({ method: 'Wallet/Tokens (Fully Covered)' });
+            const orderId = await persistOrder({ method: 'Wallet/Tokens (Fully Covered)' });
             setSaveFailed(false);
             setPaymentDetails({ method: 'Wallet/Tokens (Fully Covered)', amount: 0 });
+            setPlacedOrder(buildOrderForBill(orderId, 'Wallet/Tokens (Fully Covered)'));
             setOrderPlaced(true);
             setCartOpen(false);
           } catch (error) {
@@ -317,7 +346,7 @@ const OrderOnline = () => {
         phone: formData.phone,
         onSuccess: async (payment) => {
           try {
-            await persistOrder({
+            const orderId = await persistOrder({
               method: 'Razorpay',
               paymentId: payment.paymentId
             });
@@ -327,13 +356,16 @@ const OrderOnline = () => {
               paymentId: payment.paymentId,
               amount: payment.amount
             });
+            setPlacedOrder(buildOrderForBill(orderId, 'Razorpay', payment.paymentId));
             setOrderPlaced(true);
             setCartOpen(false);
           } catch (error) {
             // CRITICAL CASE: the customer's money was already taken by
             // Razorpay, but we could not record the order. Do NOT show a
             // fake success message. Show the payment ID so this can be
-            // manually reconciled instead of silently lost.
+            // manually reconciled instead of silently lost. The bill can
+            // still be generated from local state (orderId is null here
+            // since nothing was actually saved to Firestore).
             console.error('Payment succeeded but order was NOT saved to Firestore:', error);
             setSaveFailed(true);
             setPaymentDetails({
@@ -341,6 +373,7 @@ const OrderOnline = () => {
               paymentId: payment.paymentId,
               amount: payment.amount
             });
+            setPlacedOrder(buildOrderForBill(null, 'Razorpay', payment.paymentId));
             setOrderPlaced(true);
             setCartOpen(false);
           }
@@ -359,8 +392,18 @@ const OrderOnline = () => {
     setCart([]);
     setFormData({ name: '', phone: '', email: '', address: '', note: '' });
     setPaymentDetails(null);
+    setPlacedOrder(null);
     setUseTokens(false);
     clearError();
+  };
+
+  const downloadBill = () => {
+    generateBillPDF(placedOrder, {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+    });
   };
 
   return (
@@ -639,6 +682,9 @@ const OrderOnline = () => {
                   confirm your order manually:<br />
                   <strong>Payment ID: {paymentDetails?.paymentId}</strong>
                 </p>
+                <button className="primary-btn" onClick={downloadBill} style={{ marginBottom: '0.6rem' }}>
+                  📄 Download Bill
+                </button>
                 <button className="primary-btn" onClick={resetOrder}>
                   Okay
                 </button>
@@ -658,6 +704,9 @@ const OrderOnline = () => {
                     <><br />🪙 You earned {tokensEarned} tokens from this order!</>
                   )}
                 </p>
+                <button className="primary-btn" onClick={downloadBill} style={{ marginBottom: '0.6rem' }}>
+                  📄 Download Bill
+                </button>
                 <button className="primary-btn" onClick={resetOrder}>
                   Order More ☕
                 </button>

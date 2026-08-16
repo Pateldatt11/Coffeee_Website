@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { generateBillPDF } from '../utils/generateBill';
 
 // Payment method labels + colors (kept inside the same warm coffee palette
 // as the rest of the site, just tinted differently per method)
@@ -357,6 +358,12 @@ const Profile = () => {
     phone: order.phone || profile.phone || '—',
     email: order.email || profile.email || '—',
   });
+
+  // Wraps generateBillPDF so it can be called straight from onClick with
+  // just the order + its resolved contact snapshot.
+  const downloadOrderBill = (order, contact) => {
+    generateBillPDF(order, contact);
+  };
 
   // ── Referral link + copy-to-clipboard ──
   const referralLink = user ? `${window.location.origin}/signup?ref=${user.uid}` : '';
@@ -733,6 +740,13 @@ const Profile = () => {
                     <div className="order-footer">
                       <span className={`pay-badge ${meta.className}`}>{meta.label}</span>
                       <span className="order-total">Total: ₹{order.total ?? order.amount ?? '0'}</span>
+                      <button
+                        type="button"
+                        className="nav-link signup-btn"
+                        onClick={() => downloadOrderBill(order, contact)}
+                      >
+                        📄 Download Bill
+                      </button>
                     </div>
 
                     {/* Feedback CTA — only for completed orders not yet rated */}
