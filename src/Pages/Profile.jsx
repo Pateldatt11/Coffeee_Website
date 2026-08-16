@@ -737,13 +737,30 @@ const Profile = () => {
                     </div>
 
                     {/* Payment + total footer */}
-                    <div className="order-footer">
+                    <div className="order-footer" style={{ flexWrap: 'wrap', gap: '0.6rem' }}>
                       <span className={`pay-badge ${meta.className}`}>{meta.label}</span>
                       <span className="order-total">Total: ₹{order.total ?? order.amount ?? '0'}</span>
+                    </div>
+
+                    {/* Bill download — kept in its own row with inline styles
+                        so it never gets squeezed into a circle by classes
+                        (nav-link / signup-btn) meant for round icon buttons
+                        elsewhere on the page. */}
+                    <div style={{ marginTop: '0.8rem' }}>
                       <button
                         type="button"
-                        className="nav-link signup-btn"
                         onClick={() => downloadOrderBill(order, contact)}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(201, 149, 108, 0.4)',
+                          background: 'rgba(212, 163, 115, 0.12)',
+                          color: '#e0c9a6',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
                       >
                         📄 Download Bill
                       </button>
