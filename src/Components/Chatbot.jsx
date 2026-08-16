@@ -12,6 +12,7 @@ import './Chatbot.css';
 // =====================================================
 
 const CHATBOT_URL = '/api/chat';
+const FEEDBACK_STORAGE_KEY = 'brewhaven_chat_feedback';
 
 const QUICK_REPLIES = [
   'Show me the menu & prices',
@@ -19,6 +20,29 @@ const QUICK_REPLIES = [
   "What's your best seller?",
   'Do you deliver?',
 ];
+
+
+// =====================================================
+// FEEDBACK STORAGE HELPERS
+// =====================================================
+// Every 👍/👎 a user gives gets saved in the browser's
+// localStorage. This is how you find out which answers are
+// landing and which aren't — the model itself doesn't learn
+// from this, but YOU can read this list and improve
+// BUSINESS_INFO / the system prompt based on real patterns.
+// =====================================================
+
+function saveFeedback(entry) {
+  try {
+    const existing = JSON.parse(
+      localStorage.getItem(FEEDBACK_STORAGE_KEY) || '[]'
+    );
+    existing.push({ ...entry, savedAt: new Date().toISOString() });
+    localStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(existing));
+  } catch (error) {
+    console.error('Could not save feedback:', error);
+  }
+}
 
 
 // =====================================================
@@ -135,7 +159,13 @@ const Chatbot = () => {
 
       setMessages((previousMessages) => [
         ...previousMessages,
-        { role: 'bot', text: reply, time: getTime() },
+        {
+          role: 'bot',
+          text: reply,
+          time: getTime(),
+          userQuestion: trimmed, // kept so feedback can log what was asked
+          feedback: null,        // null | 'up' | 'down'
+        },
       ]);
 
       if (!isOpen) {
@@ -169,6 +199,27 @@ const Chatbot = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+
+  // ===================================================
+  // FEEDBACK (👍 / 👎 on a bot answer)
+  // ===================================================
+
+  const handleFeedback = (index, value) => {
+    setMessages((previousMessages) =>
+      previousMessages.map((message, i) =>
+        i === index ? { ...message, feedback: value } : message
+      )
+    );
+
+    const target = messages[index];
+
+    saveFeedback({
+      question: target?.userQuestion || null,
+      answer: target?.text,
+      rating: value, // 'up' or 'down'
+    });
   };
 
 
@@ -315,6 +366,39 @@ const Chatbot = () => {
               >
                 {message.text}
               </div>
+
+              {/* Feedback buttons — only on real bot answers, not the
+                  greeting message and not error messages */}
+              {message.role === 'bot' && !message.isError && index !== 0 && (
+                <div className="chatbot-feedback">
+                  <button
+                    type="button"
+                    className={`chatbot-feedback-btn ${
+                      message.feedback === 'up' ? 'active' : ''
+                    }`}
+                    onClick={() => handleFeedback(index, 'up')}
+                    aria-label="Good answer"
+                  >
+                    👍
+                  </button>
+                  <button
+                    type="button"
+                    className={`chatbot-feedback-btn ${
+                      message.feedback === 'down' ? 'active' : ''
+                    }`}
+                    onClick={() => handleFeedback(index, 'down')}
+                    aria-label="Not helpful"
+                  >
+                    👎
+                  </button>
+                  {message.feedback && (
+                    <span className="chatbot-feedback-thanks">
+                      Thanks for the feedback!
+                    </span>
+                  )}
+                </div>
+              )}
+
               <span className="chatbot-time">
                 {message.time}
                 {message.role === 'user' && (

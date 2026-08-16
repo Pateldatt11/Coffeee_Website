@@ -449,3 +449,25 @@
     bottom: 16px;
   }
 }
+.chatbot-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.chatbot-feedback-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.chatbot-feedback-btn:hover,
+.chatbot-feedback-btn.active {
+  opacity: 1;
+}
+.chatbot-feedback-thanks {
+  font-size: 0.7rem;
+  color: #888;
+}
