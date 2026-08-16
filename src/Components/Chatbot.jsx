@@ -271,16 +271,36 @@ const Chatbot = () => {
           </svg>
         ) : (
           <span className="chatbot-toggle-icon" aria-hidden="true">
+            {/* Coffee cup logo — matches the Brew Haven brand instead of a
+                generic chat-bubble icon. Steam lines + saucer, filled cup
+                body so it reads clearly at small (24px) sizes. */}
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path
-                d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H9l-4 3.5v-3.5H5.5C4.67 16 4 15.33 4 14.5v-10Z"
+                d="M6 15.5c-1.4-.55-2.4-1.7-2.4-3.05 0-1.87 1.9-3.38 4.25-3.38h7.3c2.35 0 4.25 1.5 4.25 3.38 0 1.87-1.9 3.38-4.25 3.38"
                 stroke="currentColor"
-                strokeWidth="1.6"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M4.5 9.6h13.2v6.3c0 2.15-1.83 3.9-4.08 3.9H8.58c-2.25 0-4.08-1.75-4.08-3.9V9.6Z"
+                fill="currentColor"
+                fillOpacity="0.16"
+                stroke="currentColor"
+                strokeWidth="1.5"
                 strokeLinejoin="round"
               />
-              <circle cx="8.3" cy="9.3" r="1.05" fill="currentColor" />
-              <circle cx="12" cy="9.3" r="1.05" fill="currentColor" />
-              <circle cx="15.7" cy="9.3" r="1.05" fill="currentColor" />
+              <path
+                d="M4 20.2h13.2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M9 3.2c-.6.75-.6 1.3 0 2.05M12.3 3.2c-.6.75-.6 1.3 0 2.05"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
             </svg>
           </span>
         )}

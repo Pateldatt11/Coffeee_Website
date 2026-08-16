@@ -31,12 +31,16 @@
 
 /* =====================================================
    FLOATING TOGGLE BUTTON
+   Moved to bottom-LEFT (was bottom-right) so it never
+   overlaps the cart button, which lives bottom-right on
+   the Order page. This is independent of the cart's exact
+   position — left and right corners can never collide.
 ===================================================== */
 
 .chatbot-toggle {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 24px;
   z-index: 1000;
   width: 58px;
   height: 58px;
@@ -92,12 +96,13 @@
 
 /* =====================================================
    CHAT WINDOW
+   Anchored bottom-LEFT to match the toggle button above it.
 ===================================================== */
 
 .chatbot-window {
   position: fixed;
   bottom: 96px;
-  right: 24px;
+  left: 24px;
   z-index: 999;
   width: 368px;
   max-width: calc(100vw - 32px);
@@ -113,7 +118,7 @@
   opacity: 0;
   transform: translateY(16px) scale(0.98);
   pointer-events: none;
-  transform-origin: bottom right;
+  transform-origin: bottom left;
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
@@ -445,10 +450,15 @@
   }
 
   .chatbot-toggle {
-    right: 16px;
+    left: 16px;
     bottom: 16px;
   }
 }
+
+/* =====================================================
+   FEEDBACK (thumbs up/down on bot answers)
+===================================================== */
+
 .chatbot-feedback {
   display: flex;
   align-items: center;
