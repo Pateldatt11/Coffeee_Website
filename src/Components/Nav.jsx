@@ -50,12 +50,6 @@ const Nav = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // Quick search — typing a drink name and hitting Enter (or the search
-  // icon) takes the customer straight to /menu?search=<term>. Wired the
-  // same way the mega-menu category links already work (query param read
-  // by Menu.jsx), so this slots into the existing pattern.
-  const [searchTerm, setSearchTerm] = useState("");
-
   // Profile fields that live in Firestore (users/{uid}), NOT on the
   // Firebase Auth user object. Profile.jsx writes photoURL/name here,
   // so Nav has to read from the same place or the avatar never updates.
@@ -143,15 +137,6 @@ const Nav = () => {
     }
   };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    const trimmed = searchTerm.trim();
-    if (!trimmed) return;
-    navigate(`/menu?search=${encodeURIComponent(trimmed)}`);
-    setSearchTerm("");
-    closeAllMenus();
-  };
-
   // Prefer Firestore's saved photo/name (kept in sync by Profile.jsx),
   // fall back to the Firebase Auth user object, then to the email prefix.
   const photoURL = profileData.photoURL || user?.photoURL || "";
@@ -169,45 +154,47 @@ const Nav = () => {
   return (
     <nav className={`navbar ${scrolled ? "scrolled" : ""}`}>
       <div className="container nav-container">
-        {/* Logo */}
+        {/* Logo — SVG coffee cup mark instead of the ⚡☕ emoji pair */}
         <div className="logo">
           <Link to="/" className="logo-text" onClick={closeAllMenus}>
-            <span className="coffee-icon">⚡☕</span> Brew Haven
-          </Link>
-        </div>
-
-        {/* Quick search — desktop only, matches the pill-search look */}
-        <form
-          className="nav-search"
-          onSubmit={handleSearchSubmit}
-          role="search"
-        >
-          <input
-            type="text"
-            className="nav-search-input"
-            placeholder="Search the menu…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            aria-label="Search the menu"
-          />
-          <button type="submit" className="nav-search-btn" aria-label="Search">
-            <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-              <circle
-                cx="9"
-                cy="9"
-                r="6.5"
+            <svg
+              className="brand-mark"
+              width="30"
+              height="30"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 15.5c-1.4-.55-2.4-1.7-2.4-3.05 0-1.87 1.9-3.38 4.25-3.38h7.3c2.35 0 4.25 1.5 4.25 3.38 0 1.87-1.9 3.38-4.25 3.38"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
+                strokeLinecap="round"
               />
               <path
-                d="M14 14L18 18"
+                d="M4.5 9.6h13.2v6.3c0 2.15-1.83 3.9-4.08 3.9H8.58c-2.25 0-4.08-1.75-4.08-3.9V9.6Z"
+                fill="currentColor"
+                fillOpacity="0.16"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4 20.2h13.2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M9 3.2c-.6.75-.6 1.3 0 2.05M12.3 3.2c-.6.75-.6 1.3 0 2.05"
+                stroke="currentColor"
+                strokeWidth="1.4"
                 strokeLinecap="round"
               />
             </svg>
-          </button>
-        </form>
+            Brew Haven
+          </Link>
+        </div>
 
         {/* Hamburger */}
         <div
@@ -309,6 +296,11 @@ const Nav = () => {
             </div>
           </li>
 
+          {/* FIX: About and FAQ were previously nested (<li><NavLink About/><li><NavLink FAQ/></li></li>)
+              — a <li> can't contain another <li> directly, only a <ul>/<ol> can.
+              Browsers "fix" this silently by hoisting the inner <li> out, which
+              usually still renders okay visually but is invalid HTML and can
+              cause subtle CSS/accessibility bugs. Now they're proper siblings. */}
           <li>
             <NavLink
               to="/about"
@@ -319,19 +311,19 @@ const Nav = () => {
             >
               About
             </NavLink>
-
-            <li>
-              <NavLink
-                to="/faq"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-                onClick={closeAllMenus}
-              >
-                FAQ
-              </NavLink>
-            </li>
           </li>
+          <li>
+            <NavLink
+              to="/faq"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+              onClick={closeAllMenus}
+            >
+              FAQ
+            </NavLink>
+          </li>
+
           <li>
             <NavLink
               to="/order"
@@ -342,47 +334,6 @@ const Nav = () => {
             >
               Order Online
             </NavLink>
-          </li>
-
-          {/* Mobile-only search — desktop already has the pill search bar
-              in the header row above, this covers small screens where
-              that bar is hidden. */}
-          <li className="nav-search-mobile-wrap">
-            <form
-              className="nav-search nav-search-mobile"
-              onSubmit={handleSearchSubmit}
-              role="search"
-            >
-              <input
-                type="text"
-                className="nav-search-input"
-                placeholder="Search the menu…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Search the menu"
-              />
-              <button
-                type="submit"
-                className="nav-search-btn"
-                aria-label="Search"
-              >
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-                  <circle
-                    cx="9"
-                    cy="9"
-                    r="6.5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  />
-                  <path
-                    d="M14 14L18 18"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </form>
           </li>
 
           {/* Admin Panel link — only visible to logged-in users whose
