@@ -42,6 +42,11 @@ const LIST_LIMIT = 500;
 // seeding into groups this size or smaller.
 const BATCH_CHUNK_SIZE = 450;
 
+// Shortens a Firestore uid for display in the "Referred By" column —
+// full uid isn't useful at-a-glance, first 8 chars is enough to
+// cross-reference against another row in the same table if needed.
+const shortUid = (uid) => (uid ? `${uid.slice(0, 8)}…` : '—');
+
 const AdminPanel = () => {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
@@ -295,6 +300,49 @@ const AdminPanel = () => {
     }
   };
 
+  // Lets an admin manually adjust a user's wallet balance (e.g. a
+  // goodwill credit, or fixing a support issue) without touching Firestore
+  // directly. Uses a plain prompt() to keep this lightweight — swap for a
+  // proper modal if you want nicer UX later.
+  const adjustUserWallet = async (u) => {
+    const input = window.prompt(
+      `Set new wallet balance for ${u.name || u.email} (currently ₹${u.wallet ?? 0}):`,
+      String(u.wallet ?? 0)
+    );
+    if (input === null) return;
+    const parsed = Number(input);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      alert('Please enter a valid, non-negative number.');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'users', u.id), { wallet: parsed });
+    } catch (err) {
+      console.error('Failed to update wallet:', err);
+      alert('Could not update wallet balance.');
+    }
+  };
+
+  // Same idea, for manually adjusting a user's token balance.
+  const adjustUserTokens = async (u) => {
+    const input = window.prompt(
+      `Set new token balance for ${u.name || u.email} (currently ${u.tokens ?? 0}):`,
+      String(u.tokens ?? 0)
+    );
+    if (input === null) return;
+    const parsed = Number(input);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      alert('Please enter a valid, non-negative number.');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'users', u.id), { tokens: parsed });
+    } catch (err) {
+      console.error('Failed to update tokens:', err);
+      alert('Could not update token balance.');
+    }
+  };
+
   // ================= FEEDBACK (derived) =================
   // Sorted worst-first (lowest rating at the top) so problem orders are
   // the first thing an admin sees, not buried under 5-star reviews.
@@ -325,6 +373,14 @@ const AdminPanel = () => {
     if (Number.isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
+
+  // ================= REWARDS (derived, for the Users tab summary) =================
+  const rewardsSummary = useMemo(() => {
+    const totalWalletOutstanding = users.reduce((sum, u) => sum + (Number(u.wallet) || 0), 0);
+    const totalTokensOutstanding = users.reduce((sum, u) => sum + (Number(u.tokens) || 0), 0);
+    const totalReferrals = users.reduce((sum, u) => sum + (Number(u.referralCount) || 0), 0);
+    return { totalWalletOutstanding, totalTokensOutstanding, totalReferrals };
+  }, [users]);
 
   // ================= ANALYTICS (derived, no extra reads) =================
   const analytics = useMemo(() => {
@@ -516,6 +572,7 @@ const AdminPanel = () => {
                       <th>Customer</th>
                       <th>Items</th>
                       <th>Amount</th>
+                      <th>Rewards Used</th>
                       <th>Payment</th>
                       <th>Status</th>
                       <th></th>
@@ -532,6 +589,11 @@ const AdminPanel = () => {
                           {(order.items || []).map(i => `${i.name} ×${i.qty}`).join(', ')}
                         </td>
                         <td>₹ {order.amount}</td>
+                        <td>
+                          {order.walletUsed > 0 && <div className="admin-subtext">Wallet: −₹{order.walletUsed}</div>}
+                          {order.tokenDiscount > 0 && <div className="admin-subtext">Tokens: −₹{order.tokenDiscount}</div>}
+                          {!order.walletUsed && !order.tokenDiscount && '—'}
+                        </td>
                         <td>{order.paymentMethod}</td>
                         <td>
                           <select
@@ -626,13 +688,42 @@ const AdminPanel = () => {
         {/* ================= USERS TAB ================= */}
         {activeTab === 'users' && (
           <div className="admin-panel-block">
+            {/* Rewards summary strip — total ₹ outstanding across all wallets,
+                total tokens outstanding, total referrals site-wide. */}
+            <div className="admin-stats-row" style={{ marginBottom: '1.5rem' }}>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Total Wallet Outstanding</p>
+                <h3 className="admin-stat-value">₹{rewardsSummary.totalWalletOutstanding}</h3>
+                <p className="admin-stat-sub">Across all users</p>
+              </div>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Total Tokens Outstanding</p>
+                <h3 className="admin-stat-value">{rewardsSummary.totalTokensOutstanding}</h3>
+                <p className="admin-stat-sub">Across all users</p>
+              </div>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Total Referrals</p>
+                <h3 className="admin-stat-value">{rewardsSummary.totalReferrals}</h3>
+                <p className="admin-stat-sub">Successful signups via referral</p>
+              </div>
+            </div>
+
             {users.length === 0 ? (
               <p className="admin-empty">No users found.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>Name</th><th>Email</th><th>Provider</th><th>Role</th></tr>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Provider</th>
+                      <th>Wallet</th>
+                      <th>Tokens</th>
+                      <th>Referrals</th>
+                      <th>Referred By</th>
+                      <th>Role</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {users.map(u => (
@@ -640,6 +731,28 @@ const AdminPanel = () => {
                         <td>{u.name || '—'}</td>
                         <td>{u.email}</td>
                         <td>{u.provider}</td>
+                        <td>
+                          <button
+                            className="admin-inline-input"
+                            style={{ cursor: 'pointer', textAlign: 'left' }}
+                            title="Click to edit wallet balance"
+                            onClick={() => adjustUserWallet(u)}
+                          >
+                            ₹{u.wallet ?? 0}
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            className="admin-inline-input"
+                            style={{ cursor: 'pointer', textAlign: 'left' }}
+                            title="Click to edit token balance"
+                            onClick={() => adjustUserTokens(u)}
+                          >
+                            {u.tokens ?? 0}
+                          </button>
+                        </td>
+                        <td>{u.referralCount ?? 0}</td>
+                        <td className="admin-subtext">{shortUid(u.referredBy)}</td>
                         <td>
                           <select
                             className="admin-select"

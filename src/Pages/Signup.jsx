@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import {
   createUserWithEmailAndPassword,
   updateProfile,
@@ -8,7 +8,7 @@ import {
   signInWithRedirect,
   getRedirectResult
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
 import './Signup.css';
@@ -66,6 +66,20 @@ const Signup = () => {
   const navigate = useNavigate();
   const [user, loading] = useAuthState(auth);
 
+  // ── Referral link support: /signup?ref=<referrerUid> ──
+  // The referrer's own uid is read straight from the URL query string.
+  // No signature/token is used here, which is fine for a friendly
+  // referral-bonus feature (not a security boundary) — worst case
+  // someone fabricates a ref link with a random uid, which just fails
+  // the getDoc "referrer exists" check below and silently no-ops.
+  const [searchParams] = useSearchParams();
+  // Firestore doc IDs can't contain '/', and a malformed or tampered-with
+  // ?ref= value could otherwise crash the doc() call below. Only accept
+  // clean alphanumeric uids (Firebase Auth uids are always alphanumeric) —
+  // anything else is silently treated as "no referral", never a crash.
+  const rawRefParam = searchParams.get('ref');
+  const refUid = rawRefParam && /^[a-zA-Z0-9]+$/.test(rawRefParam) ? rawRefParam : null;
+
   const [showPass, setShowPass]           = useState(false);
   const [formLoading, setFormLoading]     = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -109,6 +123,47 @@ const Signup = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // ── Gift cards / rewards: signup bonus + referral bonus ──
+  // Runs after the user's base doc is written. Guarded so it NEVER
+  // re-grants the ₹30 bonus on a returning user (e.g. someone signing
+  // back in with Google from this same page) — it only fires the very
+  // first time a users/{uid} doc gets a `wallet` field.
+  const applySignupBonuses = async (newUserUid) => {
+    const userRef = doc(db, 'users', newUserUid);
+    try {
+      const existingSnap = await getDoc(userRef);
+      const alreadyBonused = existingSnap.exists() && typeof existingSnap.data().wallet === 'number';
+      if (alreadyBonused) return; // returning user — bonus already granted before
+
+      const referredBy = refUid && refUid !== newUserUid ? refUid : null;
+
+      await setDoc(userRef, {
+        wallet: 30,          // ── signup bonus ₹30 ──
+        tokens: 0,            // coffee-purchase reward tokens, start at 0
+        referralCount: 0,     // how many friends this user has referred
+        referredBy,            // uid of whoever referred this user, if any
+      }, { merge: true });
+
+      if (referredBy) {
+        try {
+          const referrerSnap = await getDoc(doc(db, 'users', referredBy));
+          if (referrerSnap.exists()) {
+            // ── referral bonus ₹50, credited to the person who sent the link ──
+            await updateDoc(doc(db, 'users', referredBy), {
+              wallet: increment(50),
+              referralCount: increment(1),
+            });
+          }
+        } catch (refErr) {
+          // A failed referral credit should never block the new user's signup.
+          console.error('Referral bonus credit failed:', refErr);
+        }
+      }
+    } catch (err) {
+      console.error('Signup bonus grant failed:', err);
+    }
+  };
+
   const saveUserAndGo = async (firebaseUser) => {
     await setDoc(doc(db, 'users', firebaseUser.uid), {
       uid: firebaseUser.uid,
@@ -119,6 +174,7 @@ const Signup = () => {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
+    await applySignupBonuses(firebaseUser.uid);
     navigate('/');
   };
 
@@ -224,6 +280,7 @@ const Signup = () => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      await applySignupBonuses(userCredential.user.uid);
       navigate('/');
     } catch (error) {
       let msg = 'Something went wrong. Please try again.';
@@ -289,6 +346,11 @@ const Signup = () => {
             <li><span className="perk-icon">🎯</span>Loyalty reward points</li>
             <li><span className="perk-icon">🚀</span>Early access to new brews</li>
           </ul>
+          {refUid && (
+            <p className="visual-sub" style={{ marginTop: '1rem', color: '#e0c9a6' }}>
+              🎁 You were invited by a friend — sign up and you'll both earn rewards!
+            </p>
+          )}
         </div>
         <div className="visual-badge">
           <div className="badge-num">★ 4.9</div>

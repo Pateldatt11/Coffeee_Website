@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
 import useRazorpay from '../hooks/useRazorpay';
 import { auth, db } from '../firebase';
 import { coffeeMenu } from '../data/menuData'; // fallback only, used until Firestore 'menu' is seeded
@@ -10,6 +10,61 @@ const paymentMethods = [
   { id: 'razorpay', name: 'Razorpay (UPI / Card / Wallet)', icon: '💳', recommended: true },
   { id: 'cod',       name: 'Cash on Delivery',               icon: '💵' },
 ];
+
+// ── Token redemption tiers ──
+// Checked highest-first so a user sitting on e.g. 1600 tokens gets
+// offered the 1500-token/35%-off tier (the best one they can afford),
+// not the 500-token tier.
+const TOKEN_TIERS = [
+  { min: 2000, cost: 2000, percent: 100, label: 'Free Coffee (2000 tokens)' },
+  { min: 1500, cost: 1500, percent: 35,  label: '35% Off (1500 tokens)' },
+  { min: 1000, cost: 1000, percent: 20,  label: '20% Off (1000 tokens)' },
+  { min: 500,  cost: 500,  percent: 10,  label: '10% Off (500 tokens)' },
+];
+
+// Minimal inline theme so this works even without touching OrderOnline.css.
+// Colors match the same palette used across Nav.css / Profile.css.
+const rewardStyles = {
+  wrap: {
+    marginTop: '1.2rem',
+    marginBottom: '1.2rem',
+    padding: '1.1rem 1.2rem',
+    background: 'rgba(212, 163, 115, 0.07)',
+    border: '1px solid rgba(201, 149, 108, 0.25)',
+    borderRadius: '10px',
+  },
+  row: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.88rem',
+    color: '#e0c9a6',
+    marginBottom: '0.5rem',
+  },
+  note: { color: '#a89070', fontSize: '0.75rem' },
+  toggleLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.6rem',
+    fontSize: '0.85rem',
+    color: '#e0c9a6',
+    marginTop: '0.6rem',
+    cursor: 'pointer',
+  },
+  summary: {
+    marginTop: '0.8rem',
+    paddingTop: '0.8rem',
+    borderTop: '1px dashed rgba(201, 149, 108, 0.3)',
+    fontSize: '0.85rem',
+    color: '#cbb89a',
+  },
+  finalLine: {
+    color: '#e0c9a6',
+    fontWeight: 700,
+    fontSize: '1rem',
+    marginTop: '0.3rem',
+  },
+};
 
 const OrderOnline = () => {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -24,6 +79,29 @@ const OrderOnline = () => {
   // "Order Placed" success — the customer already paid, so they need
   // their payment ID to get this manually resolved, not a lie.
   const [saveFailed, setSaveFailed] = useState(false);
+
+  // ================= REWARDS: wallet + tokens =================
+  // Live-subscribed so a balance change elsewhere (e.g. a referral
+  // bonus landing while this tab is open) reflects immediately.
+  const [wallet, setWallet] = useState(0);
+  const [tokens, setTokens] = useState(0);
+  const [useTokens, setUseTokens] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setWallet(0); setTokens(0); return; }
+    const unsub = onSnapshot(
+      doc(db, 'users', user.uid),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setWallet(typeof data.wallet === 'number' ? data.wallet : 0);
+          setTokens(typeof data.tokens === 'number' ? data.tokens : 0);
+        }
+      },
+      (err) => console.error('Wallet/token listener error:', err)
+    );
+    return () => unsub();
+  }, [user]);
 
   // ================= MENU (live from Firestore) =================
   const [menuItems, setMenuItems] = useState(
@@ -120,6 +198,19 @@ const OrderOnline = () => {
   const totalItems = cart.reduce((sum, c) => sum + c.qty, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
 
+  // ── Reward math ──
+  // Best tier the user can currently afford with their token balance.
+  const bestTier = TOKEN_TIERS.find(t => tokens >= t.min) || null;
+  const tokenDiscountAmount = (useTokens && bestTier)
+    ? Math.round((totalPrice * bestTier.percent) / 100)
+    : 0;
+  const afterTokenDiscount = Math.max(0, totalPrice - tokenDiscountAmount);
+  // Wallet always auto-applies (up to whatever's left to pay) — no toggle needed.
+  const walletApplied = Math.min(wallet, afterTokenDiscount);
+  const finalTotal = Math.max(0, afterTokenDiscount - walletApplied);
+  // 5 tokens earned per coffee (i.e. per unit quantity across the whole cart).
+  const tokensEarned = totalItems * 5;
+
   const filtered = activeCategory === 'All'
     ? menuItems
     : menuItems.filter(i => i.category === activeCategory);
@@ -137,7 +228,13 @@ const OrderOnline = () => {
       note: formData.note,
       paymentMethod: method,
       paymentId,
-      amount: totalPrice,
+      // Reward breakdown kept on the order doc so Profile.jsx / Adminpanel.jsx
+      // can show exactly how much was wallet vs token vs actually paid.
+      subtotal: totalPrice,
+      tokenDiscount: tokenDiscountAmount,
+      walletUsed: walletApplied,
+      tokensEarned,
+      amount: finalTotal,
       // FIX: added `img` so the order history (Profile.jsx) can show a
       // picture of what was ordered — previously only id/name/category/
       // price/qty were stored, so every order card fell back to a
@@ -153,6 +250,22 @@ const OrderOnline = () => {
       status: 'placed',
       createdAt: serverTimestamp()
     });
+
+    // Settle the user's wallet + tokens for this order: deduct whatever
+    // wallet/tokens were spent, credit the tokens earned from this purchase.
+    if (user) {
+      const tierTokensSpent = (useTokens && bestTier) ? bestTier.cost : 0;
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          wallet: increment(-walletApplied),
+          tokens: increment(tokensEarned - tierTokensSpent),
+        });
+      } catch (err) {
+        // Order itself is already saved at this point — don't fail the
+        // whole checkout over a rewards-ledger update issue, just log it.
+        console.error('Wallet/token settlement failed:', err);
+      }
+    }
   };
 
   const handleOrder = (e) => {
@@ -166,7 +279,7 @@ const OrderOnline = () => {
         try {
           await persistOrder({ method: 'Cash on Delivery' });
           setSaveFailed(false);
-          setPaymentDetails({ method: 'Cash on Delivery', amount: totalPrice });
+          setPaymentDetails({ method: 'Cash on Delivery', amount: finalTotal });
           setOrderPlaced(true);
           setCartOpen(false);
         } catch (error) {
@@ -179,8 +292,26 @@ const OrderOnline = () => {
 
     // Razorpay Payment
     if (selectedPayment === 'razorpay') {
+      // Wallet/token discounts already cover the whole order — nothing
+      // left to charge, so skip the payment gateway entirely.
+      if (finalTotal <= 0) {
+        (async () => {
+          try {
+            await persistOrder({ method: 'Wallet/Tokens (Fully Covered)' });
+            setSaveFailed(false);
+            setPaymentDetails({ method: 'Wallet/Tokens (Fully Covered)', amount: 0 });
+            setOrderPlaced(true);
+            setCartOpen(false);
+          } catch (error) {
+            console.error('Could not save order to Firestore:', error);
+            alert('Something went wrong placing your order. Please try again, or contact us if the problem continues.');
+          }
+        })();
+        return;
+      }
+
       initiatePayment({
-        amount: totalPrice,
+        amount: finalTotal,
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
@@ -228,6 +359,7 @@ const OrderOnline = () => {
     setCart([]);
     setFormData({ name: '', phone: '', email: '', address: '', note: '' });
     setPaymentDetails(null);
+    setUseTokens(false);
     clearError();
   };
 
@@ -353,9 +485,53 @@ const OrderOnline = () => {
                 </div>
 
                 <div className="cart-total">
-                  <span>Total Amount</span>
+                  <span>Subtotal</span>
                   <span className="total-price">₹ {totalPrice}</span>
                 </div>
+
+                {/* ── Rewards: wallet auto-apply + token redemption ── */}
+                {user && (wallet > 0 || tokens > 0) && (
+                  <div style={rewardStyles.wrap}>
+                    <p className="section-tag" style={{ marginBottom: '0.8rem' }}>Your Rewards</p>
+
+                    {wallet > 0 && (
+                      <div style={rewardStyles.row}>
+                        <span>💰 Wallet Balance</span>
+                        <span>₹{wallet} <span style={rewardStyles.note}>(auto-applied)</span></span>
+                      </div>
+                    )}
+
+                    {tokens > 0 && (
+                      <div style={rewardStyles.row}>
+                        <span>🪙 Tokens</span>
+                        <span>{tokens}</span>
+                      </div>
+                    )}
+
+                    {bestTier ? (
+                      <label style={rewardStyles.toggleLabel}>
+                        <input
+                          type="checkbox"
+                          checked={useTokens}
+                          onChange={(e) => setUseTokens(e.target.checked)}
+                        />
+                        <span>Use {bestTier.cost} tokens for {bestTier.label}</span>
+                      </label>
+                    ) : (
+                      <p style={rewardStyles.note}>
+                        Earn 5 tokens per coffee — 500 tokens unlocks 10% off.
+                      </p>
+                    )}
+
+                    {(tokenDiscountAmount > 0 || walletApplied > 0) && (
+                      <div style={rewardStyles.summary}>
+                        {tokenDiscountAmount > 0 && <p>Token Discount: −₹{tokenDiscountAmount}</p>}
+                        {walletApplied > 0 && <p>Wallet Applied: −₹{walletApplied}</p>}
+                        <p style={rewardStyles.finalLine}>You Pay: ₹{finalTotal}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Payment Section */}
                 <div className="payment-section">
@@ -439,7 +615,7 @@ const OrderOnline = () => {
                     className={`primary-btn place-order-btn ${isProcessing ? 'processing' : ''}`}
                     disabled={isProcessing}
                   >
-                    {isProcessing ? 'Processing...' : `Pay ₹ ${totalPrice}`}
+                    {isProcessing ? 'Processing...' : `Pay ₹ ${finalTotal}`}
                   </button>
                 </form>
               </>
@@ -477,6 +653,9 @@ const OrderOnline = () => {
                   <strong>Payment:</strong> {paymentDetails?.method}
                   {paymentDetails?.paymentId && (
                     <><br />Payment ID: {paymentDetails.paymentId}</>
+                  )}
+                  {tokensEarned > 0 && (
+                    <><br />🪙 You earned {tokensEarned} tokens from this order!</>
                   )}
                 </p>
                 <button className="primary-btn" onClick={resetOrder}>

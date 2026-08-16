@@ -23,6 +23,16 @@ const getPaymentMeta = (method) => {
   return PAYMENT_META.other;
 };
 
+// ── Token redemption tiers (mirrors OrderOnline.jsx) — used here only
+// to render the progress bar + "next reward" markers, no redemption
+// logic happens on this page. ──
+const TOKEN_TIER_STEPS = [
+  { amount: 500, label: '10% Off' },
+  { amount: 1000, label: '20% Off' },
+  { amount: 1500, label: '35% Off' },
+  { amount: 2000, label: 'Free Coffee' },
+];
+
 const emptyProfile = {
   name: '',
   username: '',
@@ -33,6 +43,8 @@ const emptyProfile = {
   photoURL: '',
 };
 
+const emptyRewards = { wallet: 0, tokens: 0, referralCount: 0 };
+
 const Profile = () => {
   const [user, authLoading] = useAuthState(auth);
   const navigate = useNavigate();
@@ -42,6 +54,14 @@ const Profile = () => {
   const [draft, setDraft] = useState(emptyProfile);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // ── Gift cards / rewards state ──
+  const [rewards, setRewards] = useState(emptyRewards);
+  const [copied, setCopied] = useState(false);
+  // The referral link stays hidden behind a "Grab Referral Link" button
+  // until clicked — keeps the card clean and avoids the raw link just
+  // sitting in the DOM/page for anyone glancing at it.
+  const [showReferral, setShowReferral] = useState(false);
 
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
@@ -108,6 +128,11 @@ const Profile = () => {
           if (!cancelled) {
             setProfile(loaded);
             setDraft(loaded);
+            setRewards({
+              wallet: typeof data.wallet === 'number' ? data.wallet : 0,
+              tokens: typeof data.tokens === 'number' ? data.tokens : 0,
+              referralCount: typeof data.referralCount === 'number' ? data.referralCount : 0,
+            });
           }
         } else {
           const fallback = {
@@ -119,6 +144,7 @@ const Profile = () => {
           if (!cancelled) {
             setProfile(fallback);
             setDraft(fallback);
+            setRewards(emptyRewards);
           }
         }
       } catch (err) {
@@ -332,6 +358,26 @@ const Profile = () => {
     email: order.email || profile.email || '—',
   });
 
+  // ── Referral link + copy-to-clipboard ──
+  const referralLink = user ? `${window.location.origin}/signup?ref=${user.uid}` : '';
+
+  const copyReferralLink = async () => {
+    if (!referralLink) return;
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
+  };
+
+  // Highest tier the user has already unlocked (for the progress bar's
+  // "next" target — caps at the top tier so the bar doesn't overflow).
+  const nextTierAmount = TOKEN_TIER_STEPS.find((t) => rewards.tokens < t.amount)?.amount
+    ?? TOKEN_TIER_STEPS[TOKEN_TIER_STEPS.length - 1].amount;
+  const progressPercent = Math.min(100, Math.round((rewards.tokens / nextTierAmount) * 100));
+
   // ── Feedback: open modal for a specific order ──
   const openFeedback = (order) => {
     setFeedbackOrder(order);
@@ -514,6 +560,86 @@ const Profile = () => {
           </div>
         </div>
 
+        {/* ── Rewards & Referrals card ── */}
+        <div className="profile-card rewards-card fade-in">
+          <div className="profile-card-head">
+            <h2>Rewards &amp; Referrals</h2>
+          </div>
+
+          <div className="rewards-grid">
+            <div className="reward-box">
+              <p className="reward-label">Wallet Balance</p>
+              <h3 className="reward-value">₹{rewards.wallet}</h3>
+              <p className="reward-note">Auto-applied at checkout</p>
+            </div>
+            <div className="reward-box">
+              <p className="reward-label">Tokens</p>
+              <h3 className="reward-value">{rewards.tokens}</h3>
+              <p className="reward-note">5 tokens per coffee ordered</p>
+            </div>
+            <div className="reward-box">
+              <p className="reward-label">Friends Referred</p>
+              <h3 className="reward-value">{rewards.referralCount}</h3>
+              <p className="reward-note">₹50 earned per referral</p>
+            </div>
+          </div>
+
+          <div className="token-progress-wrap">
+            <div className="token-progress-labels">
+              <span>{rewards.tokens} tokens</span>
+              <span>Next reward at {nextTierAmount}</span>
+            </div>
+            <div className="token-progress-bar">
+              <div className="token-progress-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <div className="token-tier-markers">
+              {TOKEN_TIER_STEPS.map((tier) => (
+                <span
+                  key={tier.amount}
+                  className={rewards.tokens >= tier.amount ? 'tier-reached' : ''}
+                >
+                  {tier.amount} → {tier.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="referral-box">
+            <p className="reward-label">Refer a Friend</p>
+
+            {!showReferral ? (
+              <button
+                type="button"
+                className="nav-link signup-btn referral-reveal-btn"
+                onClick={() => setShowReferral(true)}
+              >
+                🎁 Grab Your Referral Link
+              </button>
+            ) : (
+              <>
+                <div className="referral-input-row">
+                  <input
+                    readOnly
+                    className="referral-input"
+                    value={referralLink}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    type="button"
+                    className="nav-link signup-btn referral-copy-btn"
+                    onClick={copyReferralLink}
+                  >
+                    {copied ? 'Copied ✓' : 'Copy Link'}
+                  </button>
+                </div>
+                <p className="referral-hint">
+                  Share this link — you earn ₹50 for every friend who signs up using it.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* ── Orders + payment history ── */}
         <div className="profile-card orders-card fade-in">
           <div className="profile-card-head">
@@ -572,6 +698,16 @@ const Profile = () => {
                         ))
                       )}
                     </div>
+
+                    {/* Reward breakdown, if this order used wallet/tokens */}
+                    {(order.walletUsed > 0 || order.tokenDiscount > 0 || order.tokensEarned > 0) && (
+                      <div className="order-rewards-line">
+                        {order.subtotal ? <span>Subtotal: ₹{order.subtotal}</span> : null}
+                        {order.tokenDiscount > 0 && <span>Token Discount: −₹{order.tokenDiscount}</span>}
+                        {order.walletUsed > 0 && <span>Wallet Used: −₹{order.walletUsed}</span>}
+                        {order.tokensEarned > 0 && <span>🪙 Earned: +{order.tokensEarned}</span>}
+                      </div>
+                    )}
 
                     {/* Shipping / contact snapshot for this order */}
                     <div className="order-contact-grid">
