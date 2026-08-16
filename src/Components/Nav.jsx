@@ -48,6 +48,13 @@ const Nav = () => {
   const [isMenuDropdownOpen, setIsMenuDropdownOpen] = useState(false); // mega menu
   const [user] = useAuthState(auth);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Quick search — typing a drink name and hitting Enter (or the search
+  // icon) takes the customer straight to /menu?search=<term>. Wired the
+  // same way the mega-menu category links already work (query param read
+  // by Menu.jsx), so this slots into the existing pattern.
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Profile fields that live in Firestore (users/{uid}), NOT on the
   // Firebase Auth user object. Profile.jsx writes photoURL/name here,
@@ -58,6 +65,15 @@ const Nav = () => {
   const dropdownRef = useRef(null); // used to detect outside clicks
 
   const toggleMenu = () => setIsOpen(!isOpen);
+
+  // Slightly denser/darker navbar once the page has scrolled — matches
+  // the .navbar.scrolled class already defined in Nav.css.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Live-subscribe to the user's Firestore doc instead of fetching it once.
   // getDoc() only ran when `user` changed (i.e. on login) — if the photo
@@ -127,6 +143,15 @@ const Nav = () => {
     }
   };
 
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return;
+    navigate(`/menu?search=${encodeURIComponent(trimmed)}`);
+    setSearchTerm('');
+    closeAllMenus();
+  };
+
   // Prefer Firestore's saved photo/name (kept in sync by Profile.jsx),
   // fall back to the Firebase Auth user object, then to the email prefix.
   const photoURL = profileData.photoURL || user?.photoURL || '';
@@ -142,7 +167,7 @@ const Nav = () => {
   };
 
   return (
-    <nav className="navbar">
+    <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="container nav-container">
 
         {/* Logo */}
@@ -151,6 +176,24 @@ const Nav = () => {
             <span className="coffee-icon">⚡☕</span> Brew Haven
           </Link>
         </div>
+
+        {/* Quick search — desktop only, matches the pill-search look */}
+        <form className="nav-search" onSubmit={handleSearchSubmit} role="search">
+          <input
+            type="text"
+            className="nav-search-input"
+            placeholder="Search the menu…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search the menu"
+          />
+          <button type="submit" className="nav-search-btn" aria-label="Search">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+              <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M14 14L18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        </form>
 
         {/* Hamburger */}
         <div
@@ -263,6 +306,28 @@ const Nav = () => {
             >
               Order Online
             </NavLink>
+          </li>
+
+          {/* Mobile-only search — desktop already has the pill search bar
+              in the header row above, this covers small screens where
+              that bar is hidden. */}
+          <li className="nav-search-mobile-wrap">
+            <form className="nav-search nav-search-mobile" onSubmit={handleSearchSubmit} role="search">
+              <input
+                type="text"
+                className="nav-search-input"
+                placeholder="Search the menu…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search the menu"
+              />
+              <button type="submit" className="nav-search-btn" aria-label="Search">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M14 14L18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            </form>
           </li>
 
           {/* Admin Panel link — only visible to logged-in users whose
