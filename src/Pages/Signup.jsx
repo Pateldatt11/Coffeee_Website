@@ -146,14 +146,20 @@ const Signup = () => {
 
       if (referredBy) {
         try {
-          const referrerSnap = await getDoc(doc(db, 'users', referredBy));
-          if (referrerSnap.exists()) {
-            // ── referral bonus ₹50, credited to the person who sent the link ──
-            await updateDoc(doc(db, 'users', referredBy), {
-              wallet: increment(50),
-              referralCount: increment(1),
-            });
-          }
+          // NOTE: we do NOT getDoc() the referrer's doc first to check it
+          // exists — Firestore security rules only allow a user to READ
+          // their own users/{uid} doc, so that read would always be
+          // permission-denied for anyone but the referrer themselves,
+          // silently blocking this whole block before it ever reached the
+          // update. Going straight to updateDoc works because the rules'
+          // isReferralBonusCredit() exception allows exactly this write
+          // regardless of who's making it. If referredBy points to a doc
+          // that doesn't actually exist, updateDoc just throws (caught
+          // below) instead of crediting anything — same safe outcome.
+          await updateDoc(doc(db, 'users', referredBy), {
+            wallet: increment(50),
+            referralCount: increment(1),
+          });
         } catch (refErr) {
           // A failed referral credit should never block the new user's signup.
           console.error('Referral bonus credit failed:', refErr);
