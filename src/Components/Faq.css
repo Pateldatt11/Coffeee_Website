@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --gold:       #c9956c;
+  --gold-light: #e8c99a;
+  --gold-dim:   rgba(201, 149, 108, 0.18);
+  --espresso:   #0d0805;
+  --roast:      #1c1007;
+  --mocha:      #2a1a0e;
+  --cream:      #f0e6d3;
+  --muted:      #a89070;
+  --transition: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.faq-page {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--espresso);
+  color: var(--cream);
+  min-height: 100vh;
+  padding-top: 90px;
+  cursor: none;
+  overflow-x: hidden;
+}
+
+.cursor-dot {
+  width: 8px; height: 8px;
+  background: var(--gold); border-radius: 50%;
+  position: fixed; top: 0; left: 0;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: transform 0.08s;
+}
+.cursor-ring {
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--gold); border-radius: 50%;
+  position: fixed; top: 0; left: 0;
+  pointer-events: none; z-index: 9998;
+  transform: translate(-50%, -50%);
+  transition: transform 0.25s var(--transition), width 0.3s, height 0.3s, border-color 0.3s;
+  opacity: 0.7;
+}
+.cursor-ring.hovered { width: 60px; height: 60px; border-color: var(--gold-light); opacity: 1; }
+
+/* ── Hero ── */
+
+.faq-hero {
+  position: relative;
+  min-height: 46vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 2.5rem 3rem;
+  background: radial-gradient(circle at 20% 20%, rgba(201,149,108,0.08), transparent 60%);
+}
+
+.faq-hero-content { max-width: 720px; }
+
+.faq-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.8rem;
+  font-size: 0.72rem; letter-spacing: 0.35em;
+  text-transform: uppercase; color: var(--gold);
+  margin-bottom: 1.2rem;
+}
+.faq-eyebrow span { display: inline-block; width: 36px; height: 1px; background: var(--gold); }
+
+.faq-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 6vw, 5.5rem);
+  line-height: 0.88;
+  color: var(--cream);
+  margin-bottom: 1.2rem;
+}
+
+.title-brand {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+@keyframes shimmer { to { background-position: 200% center; } }
+
+.faq-hero-sub {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.scroll-hint {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--muted); margin-top: 2.5rem;
+}
+.scroll-line { display: inline-block; width: 30px; height: 1px; background: var(--muted); }
+
+/* ── Section ── */
+
+.faq-section { padding: 2rem 2.5rem 6rem; }
+.faq-container { max-width: 900px; margin: 0 auto; }
+
+.fade-in { opacity: 0; transform: translateY(24px); transition: opacity 0.7s var(--transition), transform 0.7s var(--transition); }
+.fade-in.visible { opacity: 1; transform: translateY(0); }
+
+.section-header { margin-bottom: 2rem; }
+.section-tag {
+  display: inline-flex; align-items: center; gap: 0.7rem;
+  font-size: 0.72rem; letter-spacing: 0.3em;
+  text-transform: uppercase; color: var(--gold);
+  margin-bottom: 0.6rem;
+}
+.section-tag::before { content: ''; display: inline-block; width: 30px; height: 1px; background: var(--gold); }
+
+.faq-container h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  color: var(--cream);
+}
+.faq-container h2 em { font-style: normal; color: var(--gold); }
+
+/* ── Filter bar (categories) ── */
+
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 0.7rem;
+  margin-bottom: 2.8rem;
+}
+.filter-btn {
+  background: transparent;
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  cursor: none;
+  transition: all 0.3s var(--transition);
+}
+.filter-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+.filter-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--espresso);
+  font-weight: 600;
+}
+
+/* ── FAQ groups + accordion items ── */
+
+.faq-group { margin-bottom: 2.6rem; }
+
+.faq-group-title {
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(201, 149, 108, 0.15);
+}
+
+.faq-list { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.faq-item {
+  background: rgba(42, 26, 14, 0.5);
+  border: 1px solid rgba(201, 149, 108, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.faq-item:hover { border-color: rgba(201, 149, 108, 0.35); }
+.faq-item.open { border-color: var(--gold); }
+
+.faq-question {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: none;
+  border: none;
+  color: var(--cream);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  padding: 1.1rem 1.3rem;
+  cursor: none;
+}
+
+.faq-chevron {
+  flex-shrink: 0;
+  color: var(--gold);
+  transition: transform 0.3s var(--transition);
+}
+.faq-chevron.flipped { transform: rotate(180deg); }
+
+.faq-answer-wrap {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s var(--transition);
+}
+.faq-item.open .faq-answer-wrap { max-height: 300px; }
+
+.faq-answer {
+  padding: 0 1.3rem 1.2rem;
+  font-size: 0.87rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+/* ── Bottom CTA ── */
+
+.faq-cta {
+  margin-top: 3rem;
+  padding: 2.2rem;
+  text-align: center;
+  background: linear-gradient(160deg, rgba(201, 149, 108, 0.1), rgba(201, 149, 108, 0.02));
+  border: 1px solid rgba(201, 149, 108, 0.2);
+  border-radius: 8px;
+}
+.faq-cta h3 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 0.02em;
+  color: var(--cream);
+  margin-bottom: 0.4rem;
+}
+.faq-cta-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 700px) {
+  .faq-hero { padding: 3rem 1.4rem 2rem; }
+  .faq-section { padding: 1.5rem 1.4rem 4rem; }
+  .faq-question { font-size: 0.88rem; padding: 1rem; }
+  .faq-answer { font-size: 0.83rem; padding: 0 1rem 1rem; }
+}

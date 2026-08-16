@@ -6,6 +6,7 @@ import Home from './Pages/Home';
 import './App.css';
 import Menu from './Pages/Menu';
 import About from './Pages/About';
+import FAQ from './Pages/FAQ';
 import OrderOnline from './Pages/OrderOnline';
 import Signup from './Pages/Signup';
 import Login from './Pages/Login';
@@ -36,6 +37,10 @@ function App() {
       '/about': {
         title: 'About Us | Brew Haven Coffee',
         description: 'Learn more about Brew Haven, our coffee story, quality standards, and cozy coffee experience.'
+      },
+      '/faq': {
+        title: 'FAQ | Brew Haven Coffee',
+        description: 'Answers to common questions about orders, delivery, payments, menu customization, and the Brew Haven loyalty program.'
       },
       '/order': {
         title: 'Order Online | Brew Haven Coffee',
@@ -120,6 +125,12 @@ function App() {
           <Route path="/about" element={
             <ProtectedRoute>
               <About />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/faq" element={
+            <ProtectedRoute>
+              <FAQ />
             </ProtectedRoute>
           } />
 

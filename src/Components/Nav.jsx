@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import './Nav.css';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import React, { useState, useEffect, useRef } from "react";
+import "./Nav.css";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { signOut } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
 // Mega-menu content for the "Menu" nav item.
 // These are the ACTUAL categories that exist in menuData.js (coffeeMenu).
@@ -14,31 +14,31 @@ import { auth, db } from '../firebase';
 // two files aren't automatically linked, this list is manual.
 const MENU_COLUMNS = [
   {
-    title: 'Espresso Drinks',
-    icon: '☕',
+    title: "Espresso Drinks",
+    icon: "☕",
     links: [
-      { label: 'Classic Espresso', to: '/menu?category=Classic%20Espresso' },
-      { label: 'Espresso + Milk', to: '/menu?category=Espresso%20%2B%20Milk' },
-      { label: 'Flavored', to: '/menu?category=Flavored' },
+      { label: "Classic Espresso", to: "/menu?category=Classic%20Espresso" },
+      { label: "Espresso + Milk", to: "/menu?category=Espresso%20%2B%20Milk" },
+      { label: "Flavored", to: "/menu?category=Flavored" },
     ],
   },
   {
-    title: 'Cold & Iced',
-    icon: '🧊',
+    title: "Cold & Iced",
+    icon: "🧊",
     links: [
-      { label: 'Cold Coffee', to: '/menu?category=Cold%20Coffee' },
-      { label: 'Blended / Iced', to: '/menu?category=Blended%2FIced' },
-      { label: 'Modern', to: '/menu?category=Modern' },
+      { label: "Cold Coffee", to: "/menu?category=Cold%20Coffee" },
+      { label: "Blended / Iced", to: "/menu?category=Blended%2FIced" },
+      { label: "Modern", to: "/menu?category=Modern" },
     ],
   },
   {
-    title: 'Specialty & Regional',
-    icon: '🌍',
+    title: "Specialty & Regional",
+    icon: "🌍",
     links: [
-      { label: 'Regional', to: '/menu?category=Regional' },
-      { label: 'Strong', to: '/menu?category=Strong' },
-      { label: 'Dessert Coffee', to: '/menu?category=Dessert%20Coffee' },
-      { label: 'Flaming', to: '/menu?category=Flaming' },
+      { label: "Regional", to: "/menu?category=Regional" },
+      { label: "Strong", to: "/menu?category=Strong" },
+      { label: "Dessert Coffee", to: "/menu?category=Dessert%20Coffee" },
+      { label: "Flaming", to: "/menu?category=Flaming" },
     ],
   },
 ];
@@ -54,12 +54,12 @@ const Nav = () => {
   // icon) takes the customer straight to /menu?search=<term>. Wired the
   // same way the mega-menu category links already work (query param read
   // by Menu.jsx), so this slots into the existing pattern.
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Profile fields that live in Firestore (users/{uid}), NOT on the
   // Firebase Auth user object. Profile.jsx writes photoURL/name here,
   // so Nav has to read from the same place or the avatar never updates.
-  const [profileData, setProfileData] = useState({ photoURL: '', name: '' });
+  const [profileData, setProfileData] = useState({ photoURL: "", name: "" });
 
   const navigate = useNavigate();
   const dropdownRef = useRef(null); // used to detect outside clicks
@@ -71,8 +71,8 @@ const Nav = () => {
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Live-subscribe to the user's Firestore doc instead of fetching it once.
@@ -83,30 +83,30 @@ const Nav = () => {
   useEffect(() => {
     if (!user) {
       setIsAdmin(false);
-      setProfileData({ photoURL: '', name: '' });
+      setProfileData({ photoURL: "", name: "" });
       return;
     }
 
     const unsubscribe = onSnapshot(
-      doc(db, 'users', user.uid),
+      doc(db, "users", user.uid),
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          setIsAdmin(data.role === 'admin');
+          setIsAdmin(data.role === "admin");
           setProfileData({
-            photoURL: data.photoURL || '',
-            name: data.name || '',
+            photoURL: data.photoURL || "",
+            name: data.name || "",
           });
         } else {
           setIsAdmin(false);
-          setProfileData({ photoURL: '', name: '' });
+          setProfileData({ photoURL: "", name: "" });
         }
       },
       (err) => {
-        console.error('Nav user doc listener failed:', err);
+        console.error("Nav user doc listener failed:", err);
         setIsAdmin(false);
-        setProfileData({ photoURL: '', name: '' });
-      }
+        setProfileData({ photoURL: "", name: "" });
+      },
     );
 
     return () => unsubscribe();
@@ -122,14 +122,14 @@ const Nav = () => {
       }
     };
     const handleEscape = (e) => {
-      if (e.key === 'Escape') setIsMenuDropdownOpen(false);
+      if (e.key === "Escape") setIsMenuDropdownOpen(false);
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [isMenuDropdownOpen]);
 
@@ -137,9 +137,9 @@ const Nav = () => {
     try {
       await signOut(auth);
       setIsOpen(false);
-      navigate('/signup');
+      navigate("/signup");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -148,18 +148,18 @@ const Nav = () => {
     const trimmed = searchTerm.trim();
     if (!trimmed) return;
     navigate(`/menu?search=${encodeURIComponent(trimmed)}`);
-    setSearchTerm('');
+    setSearchTerm("");
     closeAllMenus();
   };
 
   // Prefer Firestore's saved photo/name (kept in sync by Profile.jsx),
   // fall back to the Firebase Auth user object, then to the email prefix.
-  const photoURL = profileData.photoURL || user?.photoURL || '';
+  const photoURL = profileData.photoURL || user?.photoURL || "";
   const displayName =
-    profileData.name?.split(' ')[0] ||
-    (user?.displayName ? user.displayName.split(' ')[0] : '') ||
-    user?.email?.split('@')[0] ||
-    'Brewer';
+    profileData.name?.split(" ")[0] ||
+    (user?.displayName ? user.displayName.split(" ")[0] : "") ||
+    user?.email?.split("@")[0] ||
+    "Brewer";
 
   const closeAllMenus = () => {
     setIsOpen(false);
@@ -167,9 +167,8 @@ const Nav = () => {
   };
 
   return (
-    <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
+    <nav className={`navbar ${scrolled ? "scrolled" : ""}`}>
       <div className="container nav-container">
-
         {/* Logo */}
         <div className="logo">
           <Link to="/" className="logo-text" onClick={closeAllMenus}>
@@ -178,7 +177,11 @@ const Nav = () => {
         </div>
 
         {/* Quick search — desktop only, matches the pill-search look */}
-        <form className="nav-search" onSubmit={handleSearchSubmit} role="search">
+        <form
+          className="nav-search"
+          onSubmit={handleSearchSubmit}
+          role="search"
+        >
           <input
             type="text"
             className="nav-search-input"
@@ -189,15 +192,26 @@ const Nav = () => {
           />
           <button type="submit" className="nav-search-btn" aria-label="Search">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-              <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M14 14L18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <circle
+                cx="9"
+                cy="9"
+                r="6.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M14 14L18 18"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </form>
 
         {/* Hamburger */}
         <div
-          className={`hamburger ${isOpen ? 'active' : ''}`}
+          className={`hamburger ${isOpen ? "active" : ""}`}
           onClick={toggleMenu}
         >
           <span></span>
@@ -206,11 +220,13 @@ const Nav = () => {
         </div>
 
         {/* Nav Links */}
-        <ul className={`nav-menu ${isOpen ? 'active' : ''}`}>
+        <ul className={`nav-menu ${isOpen ? "active" : ""}`}>
           <li>
             <NavLink
               to="/"
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
               onClick={closeAllMenus}
             >
               Home
@@ -221,13 +237,13 @@ const Nav = () => {
           <li className="nav-item-dropdown" ref={dropdownRef}>
             <button
               type="button"
-              className={`nav-link dropdown-trigger ${isMenuDropdownOpen ? 'active' : ''}`}
+              className={`nav-link dropdown-trigger ${isMenuDropdownOpen ? "active" : ""}`}
               onClick={() => setIsMenuDropdownOpen((prev) => !prev)}
               aria-expanded={isMenuDropdownOpen}
             >
               Menu
               <svg
-                className={`chevron ${isMenuDropdownOpen ? 'flipped' : ''}`}
+                className={`chevron ${isMenuDropdownOpen ? "flipped" : ""}`}
                 width="12"
                 height="12"
                 viewBox="0 0 12 12"
@@ -243,13 +259,15 @@ const Nav = () => {
               </svg>
             </button>
 
-            <div className={`mega-dropdown ${isMenuDropdownOpen ? 'open' : ''}`}>
+            <div
+              className={`mega-dropdown ${isMenuDropdownOpen ? "open" : ""}`}
+            >
               <div className="mega-dropdown-inner">
                 {MENU_COLUMNS.map((column, colIndex) => (
                   <div
                     className="mega-column"
                     key={column.title}
-                    style={{ '--col-delay': `${colIndex * 0.05}s` }}
+                    style={{ "--col-delay": `${colIndex * 0.05}s` }}
                   >
                     <span className="mega-column-title">
                       <span className="mega-column-icon">{column.icon}</span>
@@ -270,7 +288,7 @@ const Nav = () => {
 
                 <div
                   className="mega-column mega-featured"
-                  style={{ '--col-delay': `${MENU_COLUMNS.length * 0.05}s` }}
+                  style={{ "--col-delay": `${MENU_COLUMNS.length * 0.05}s` }}
                 >
                   <span className="mega-column-title">Full Menu</span>
                   <NavLink
@@ -278,7 +296,9 @@ const Nav = () => {
                     className="mega-featured-card"
                     onClick={closeAllMenus}
                   >
-                    <span className="mega-featured-heading">Browse everything</span>
+                    <span className="mega-featured-heading">
+                      Browse everything
+                    </span>
                     <span className="mega-featured-sub">
                       All 50+ drinks, filterable by category
                     </span>
@@ -292,16 +312,32 @@ const Nav = () => {
           <li>
             <NavLink
               to="/about"
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
               onClick={closeAllMenus}
             >
               About
             </NavLink>
+
+            <li>
+              <NavLink
+                to="/faq"
+                className={({ isActive }) =>
+                  isActive ? "nav-link active" : "nav-link"
+                }
+                onClick={closeAllMenus}
+              >
+                FAQ
+              </NavLink>
+            </li>
           </li>
           <li>
             <NavLink
               to="/order"
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
               onClick={closeAllMenus}
             >
               Order Online
@@ -312,7 +348,11 @@ const Nav = () => {
               in the header row above, this covers small screens where
               that bar is hidden. */}
           <li className="nav-search-mobile-wrap">
-            <form className="nav-search nav-search-mobile" onSubmit={handleSearchSubmit} role="search">
+            <form
+              className="nav-search nav-search-mobile"
+              onSubmit={handleSearchSubmit}
+              role="search"
+            >
               <input
                 type="text"
                 className="nav-search-input"
@@ -321,10 +361,25 @@ const Nav = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Search the menu"
               />
-              <button type="submit" className="nav-search-btn" aria-label="Search">
+              <button
+                type="submit"
+                className="nav-search-btn"
+                aria-label="Search"
+              >
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-                  <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-                  <path d="M14 14L18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="6.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                  <path
+                    d="M14 14L18 18"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </form>
@@ -336,7 +391,9 @@ const Nav = () => {
             <li>
               <NavLink
                 to="/admin"
-                className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+                className={({ isActive }) =>
+                  isActive ? "nav-link active" : "nav-link"
+                }
                 onClick={closeAllMenus}
               >
                 Admin Panel
@@ -355,7 +412,11 @@ const Nav = () => {
               >
                 <div className="user-avatar">
                   {photoURL ? (
-                    <img src={photoURL} alt={displayName} className="avatar-img" />
+                    <img
+                      src={photoURL}
+                      alt={displayName}
+                      className="avatar-img"
+                    />
                   ) : (
                     <span className="avatar-initials">
                       {displayName.charAt(0).toUpperCase()}
