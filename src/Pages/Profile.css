@@ -666,3 +666,249 @@
     grid-template-columns: 1fr;
   }
 }
+/* =====================================================
+   FEEDBACK / DETAILS MODAL — themed to match the site
+   (dark espresso background, gold accents, clip-path
+   buttons) instead of the plain white browser-default look.
+
+   Uses the same color tokens as the rest of the site
+   (Login.css / Signup.css / OrderOnline.css). If your
+   global tokens live in a shared file (e.g. index.css)
+   and are already :root-scoped, the --gold/--espresso
+   fallback values below are simply unused — this block
+   will just pick up your real theme automatically.
+===================================================== */
+
+.details-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(13, 8, 5, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fb-fade-in 0.2s ease;
+}
+
+@keyframes fb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.details-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--mocha, #2a1a0e);
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  border-radius: 4px;
+  padding: 2.2rem 2rem 2rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55);
+  animation: fb-rise 0.25s cubic-bezier(0.77, 0, 0.175, 1);
+  font-family: 'DM Sans', sans-serif;
+}
+
+@keyframes fb-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.details-close {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 149, 108, 0.3);
+  background: rgba(201, 149, 108, 0.08);
+  color: var(--gold, #c9956c);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.25s, color 0.25s;
+}
+
+.details-close:hover {
+  background: var(--gold, #c9956c);
+  color: var(--espresso, #0d0805);
+}
+
+.details-body .category-tag {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--gold, #c9956c);
+  margin-bottom: 0.6rem;
+}
+
+.details-body h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  line-height: 1.05;
+  color: var(--cream, #f0e6d3);
+  margin-bottom: 1.3rem;
+  letter-spacing: 0.02em;
+}
+
+/* ── Star rating ── */
+
+.feedback-stars {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1.3rem;
+}
+
+.feedback-star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--gold, #c9956c);
+  padding: 0;
+  transition: transform 0.15s ease;
+}
+
+.feedback-star:hover {
+  transform: scale(1.18);
+}
+
+/* ── Comment box ── */
+
+.feedback-comment,
+.details-body .form-textarea {
+  width: 100%;
+  background: rgba(13, 8, 5, 0.55);
+  border: 1px solid rgba(201, 149, 108, 0.22);
+  border-radius: 2px;
+  color: var(--cream, #f0e6d3);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  padding: 0.85rem 1rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.25s;
+}
+
+.feedback-comment::placeholder {
+  color: var(--muted, #a89070);
+  opacity: 0.75;
+}
+
+.feedback-comment:focus {
+  border-color: var(--gold, #c9956c);
+}
+
+/* ── Submit button — same clip-path style as the rest of the site ── */
+
+.details-body .primary-btn {
+  position: relative;
+  width: 100%;
+  padding: 1rem 1.6rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  background: var(--gold, #c9956c);
+  color: var(--espresso, #0d0805);
+  cursor: pointer;
+  overflow: hidden;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  transition: background 0.3s, opacity 0.3s;
+  margin-top: 1rem;
+}
+
+.details-body .primary-btn:hover:not(:disabled) {
+  background: var(--gold-light, #e8c99a);
+}
+
+.details-body .primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── "Thank you" state after submitting ── */
+
+.feedback-thanks {
+  text-align: center;
+  padding: 1.5rem 0.5rem 0.5rem;
+}
+
+.feedback-thanks .success-icon {
+  font-size: 2.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.feedback-thanks h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  color: var(--cream, #f0e6d3);
+  margin-bottom: 0.5rem;
+}
+
+.feedback-thanks h2 em {
+  font-style: normal;
+  color: var(--gold, #c9956c);
+}
+
+.feedback-thanks p {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--muted, #a89070);
+}
+
+/* ── "Rate this order" CTA button + "already rated" note on order cards ── */
+
+.order-feedback-cta {
+  margin-top: 1rem;
+  text-align: right;
+}
+
+.order-feedback-cta .nav-link.signup-btn {
+  display: inline-block;
+  background: var(--gold, #c9956c);
+  color: var(--espresso, #0d0805);
+  padding: 0.6rem 1.3rem;
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  transition: background 0.25s;
+}
+
+.order-feedback-cta .nav-link.signup-btn:hover {
+  background: var(--gold-light, #e8c99a);
+}
+
+.order-feedback-done {
+  margin-top: 0.7rem;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--gold, #c9956c);
+  letter-spacing: 0.02em;
+}
+
+/* ── Mobile ── */
+
+@media (max-width: 480px) {
+  .details-modal {
+    padding: 1.8rem 1.4rem 1.6rem;
+  }
+  .details-body h2 {
+    font-size: 1.6rem;
+  }
+  .feedback-star {
+    font-size: 1.8rem;
+  }
+}
