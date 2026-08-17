@@ -18,7 +18,7 @@ import ScrollToTop from './Components/ScrollToTop';
 import ProtectedRoute from './Components/Protectedroute';
 import { trackVisit } from './utils/visitTracker';
 import Chatbot from './Components/Chatbot';
-import { ThemeProvider } from './context/ThemeContext';
+
 
 
 
@@ -103,7 +103,7 @@ function App() {
   }, [location.pathname]);
 
   return (
-    <ThemeProvider>
+    
       <div className="app-layout">
         <Nav />
         <ScrollToTop />
@@ -186,7 +186,7 @@ function App() {
         <Footer />
         <Chatbot />
       </div>
-    </ThemeProvider>
+    
   );
 }
 
