@@ -12,6 +12,35 @@
   --muted:       #a89070;
   --white:       #ffffff;
   --transition:  cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* ── Extra vars for the few spots that were hardcoded instead of
+     using the palette above — needed so light mode covers them too. ── */
+  --text-secondary: rgba(240, 230, 211, 0.65);
+  --hero-panel-grad: linear-gradient(160deg, #170e07 0%, #0d0805 100%);
+  --product-card-bg: rgba(20, 12, 6, 0.85);
+  --product-name-bg: rgba(10, 6, 2, 0.92);
+  /* Marquee strip is always gold — its text needs to stay dark in BOTH
+     themes for contrast, so it's deliberately NOT tied to --espresso
+     (which flips to near-white in light mode and would vanish here). */
+  --marquee-text: #0d0805;
+}
+
+[data-theme="light"] {
+  --gold:        #a9682f;
+  --gold-light:  #c98a4a;
+  --gold-dim:    rgba(169, 104, 47, 0.14);
+  --espresso:    #fffaf4;
+  --roast:       #f7ede0;
+  --mocha:       #f0e2cf;
+  --cream:       #3a2a18;
+  --muted:       #8a6a48;
+  --white:       #2c1c0f;
+
+  --text-secondary: rgba(58, 42, 24, 0.72);
+  --hero-panel-grad: linear-gradient(160deg, #f7ede0 0%, #fffaf4 100%);
+  --product-card-bg: rgba(255, 250, 244, 0.9);
+  --product-name-bg: rgba(255, 250, 244, 0.96);
+  --marquee-text: #2c1c0f;
 }
 
 
@@ -83,7 +112,7 @@
   position: absolute;
   top: 0; right: -10%; bottom: 0;
   width: 55%;
-  background: linear-gradient(160deg, #170e07 0%, #0d0805 100%);
+  background: var(--hero-panel-grad);
   clip-path: polygon(10% 0, 100% 0, 100% 100%, 0% 100%);
   z-index: 0;
 }
@@ -314,7 +343,7 @@
 
 .product-card {
   width: 100%; height: 100%;
-  background: rgba(20, 12, 6, 0.85);
+  background: var(--product-card-bg);
   border-radius: 50%;
   border: 1.5px solid rgba(201, 149, 108, 0.2);
   overflow: visible;
@@ -341,7 +370,7 @@
   position: absolute;
   bottom: -32px; left: 50%;
   transform: translateX(-50%) translateY(6px);
-  background: rgba(10, 6, 2, 0.92);
+  background: var(--product-name-bg);
   border: 1px solid rgba(201, 149, 108, 0.25);
   padding: 0.28rem 0.9rem;
   border-radius: 30px;
@@ -486,13 +515,13 @@
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.1rem;
   letter-spacing: 0.15em;
-  color: var(--espresso);
+  color: var(--marquee-text);
 }
 
 .marquee-dot {
   display: inline-block;
   width: 5px; height: 5px;
-  background: var(--espresso);
+  background: var(--marquee-text);
   border-radius: 50%;
   opacity: 0.5;
 }
@@ -577,6 +606,9 @@
 .image-overlay {
   position: absolute;
   inset: 0;
+  /* Deliberately kept a fixed dark gradient regardless of theme — this
+     sits ON TOP of a photo (not the page background), and the caption
+     text below is light-colored, so it needs a dark backdrop either way. */
   background: linear-gradient(to top, rgba(10,6,2,0.9) 0%, rgba(10,6,2,0.1) 55%, transparent 100%);
   display: flex;
   align-items: flex-end;
@@ -661,7 +693,7 @@
 .about-text p {
   font-size: 1rem;
   line-height: 1.85;
-  color: rgba(240, 230, 211, 0.65);
+  color: var(--text-secondary);
   max-width: 480px;
 }
 
