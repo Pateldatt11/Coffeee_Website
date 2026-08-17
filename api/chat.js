@@ -1,26 +1,15 @@
-// api/chat.js
-
-// =========================================================
-// BREW HAVEN KNOWLEDGE BASE
-// =========================================================
-// EDIT THIS with your real shop details. This is what the
-// bot actually knows — it will answer FROM here, not guess.
-// Keeping this accurate = satisfying, correct answers for
-// the most common questions customers ask a coffee shop.
-// =========================================================
-
 const BUSINESS_INFO = `
 SHOP: Brew Haven
 
 HOURS:
 - Mon–Fri: 8:00 AM – 9:00 PM
 - Sat–Sun: 9:00 AM – 10:00 PM
-- Open on public holidays with reduced hours (10 AM – 6 PM)
+- Public holidays: 10:00 AM – 6:00 PM
 
 LOCATION & CONTACT:
-- Address: [Your shop address here]
-- Phone: [Your phone number here]
-- We offer dine-in, takeaway, and delivery via [Swiggy/Zomato/your delivery partner]
+- Address: Contact Brew Haven staff for the exact address.
+- Phone: Contact Brew Haven staff for phone details.
+- We offer dine-in, takeaway, and delivery.
 
 MENU — COFFEE:
 - Espresso — ₹99
@@ -31,7 +20,7 @@ MENU — COFFEE:
 - Mocha — ₹179
 - Cold Brew — ₹159
 - Iced Latte — ₹169
-- Filter Kaapi (South Indian style) — ₹99
+- Filter Kaapi — ₹99
 
 MENU — NON-COFFEE:
 - Masala Chai — ₹89
@@ -51,18 +40,156 @@ CUSTOMIZATION:
 - Sugar-free / less sugar available on request
 - All coffees available Hot or Iced
 
-BEST SELLERS: Cappuccino, Cold Brew, Filter Kaapi, Banana Bread
+BEST SELLERS:
+- Cappuccino
+- Cold Brew
+- Filter Kaapi
+- Banana Bread
 
 LOYALTY PROGRAM:
 - Every 8th coffee free with Brew Haven loyalty card
-- Ask at the counter or on the app to join
 
-PAYMENTS: Cash, all major cards, UPI, and popular wallets accepted
+PAYMENTS:
+- Cash
+- Major cards
+- UPI
+- Popular wallets
 
-AMENITIES: Free WiFi, indoor + outdoor seating, pet-friendly outdoor area, charging points
+AMENITIES:
+- Free WiFi
+- Indoor + outdoor seating
+- Pet-friendly outdoor area
+- Charging points
 
-ALLERGEN NOTE: Our kitchen handles nuts, gluten, and dairy — please tell staff about any allergy before ordering
+ALLERGEN NOTE:
+- Our kitchen handles nuts, gluten, and dairy.
+- Please tell staff about any allergy before ordering.
 `.trim();
+
+
+// =========================================================
+// SIMPLE LOCAL FALLBACK
+// This ensures your college demo still works even if Groq
+// temporarily fails.
+// =========================================================
+
+function getFallbackReply(message) {
+  const text = message.toLowerCase().trim();
+
+  if (
+    text.includes('menu') ||
+    text.includes('price') ||
+    text.includes('what do you have')
+  ) {
+    return `Here is our menu:
+
+☕ Coffee:
+Espresso ₹99
+Americano ₹129
+Cappuccino ₹149
+Cafe Latte ₹159
+Flat White ₹169
+Mocha ₹179
+Cold Brew ₹159
+Iced Latte ₹169
+Filter Kaapi ₹99
+
+🥤 Non-Coffee:
+Masala Chai ₹89
+Hot Chocolate ₹149
+Fresh Lemonade ₹119
+Iced Tea ₹129
+
+🍪 Food:
+Croissant ₹99 / ₹129
+Banana Bread ₹109
+Sandwich ₹149 / ₹169 / ₹189
+Brownie ₹119
+Cookies ₹89
+
+Our best sellers are Cappuccino, Cold Brew, Filter Kaapi and Banana Bread.`;
+  }
+
+  if (
+    text.includes('close') ||
+    text.includes('closing') ||
+    text.includes('open') ||
+    text.includes('hours') ||
+    text.includes('time')
+  ) {
+    return 'We are open Monday to Friday from 8:00 AM to 9:00 PM. On Saturday and Sunday, we are open from 9:00 AM to 10:00 PM.';
+  }
+
+  if (
+    text.includes('best seller') ||
+    text.includes('popular') ||
+    text.includes('recommend')
+  ) {
+    return 'Our best sellers are Cappuccino, Cold Brew, Filter Kaapi and Banana Bread. If you want one recommendation, try the Cappuccino for ₹149.';
+  }
+
+  if (
+    text.includes('deliver') ||
+    text.includes('delivery') ||
+    text.includes('home delivery')
+  ) {
+    return 'Yes, Brew Haven offers delivery. Please check with the shop for the currently available delivery partner.';
+  }
+
+  if (
+    text.includes('cold')
+  ) {
+    return 'For something cold, I recommend our Cold Brew for ₹159 or Iced Latte for ₹169.';
+  }
+
+  if (
+    text.includes('strong')
+  ) {
+    return 'For a strong coffee, try Espresso for ₹99 or Americano for ₹129.';
+  }
+
+  if (
+    text.includes('cheap') ||
+    text.includes('budget') ||
+    text.includes('low price')
+  ) {
+    return 'Our most affordable coffee options are Espresso and Filter Kaapi, both priced at ₹99.';
+  }
+
+  if (
+    text.includes('milk') ||
+    text.includes('oat') ||
+    text.includes('almond') ||
+    text.includes('soy')
+  ) {
+    return 'We offer full cream and low-fat milk, plus oat, almond or soy milk for an additional ₹30.';
+  }
+
+  if (
+    text.includes('wifi') ||
+    text.includes('wi-fi')
+  ) {
+    return 'Yes, Brew Haven has free WiFi. We also have indoor and outdoor seating plus charging points.';
+  }
+
+  if (
+    text.includes('payment') ||
+    text.includes('upi') ||
+    text.includes('card')
+  ) {
+    return 'We accept cash, major cards, UPI and popular wallets.';
+  }
+
+  if (
+    text.includes('hello') ||
+    text.includes('hi') ||
+    text.includes('hey')
+  ) {
+    return 'Hello! I am Bru, the Brew Haven virtual barista. Ask me about our menu, prices, hours or coffee recommendations.';
+  }
+
+  return 'I can help with Brew Haven menu items, prices, opening hours, delivery, amenities and coffee recommendations. What would you like to know?';
+}
 
 
 // =========================================================
@@ -70,10 +197,7 @@ ALLERGEN NOTE: Our kitchen handles nuts, gluten, and dairy — please tell staff
 // =========================================================
 
 export default async function handler(req, res) {
-  // =====================================================
   // CORS
-  // =====================================================
-
   const allowedOrigins = [
     'http://localhost:5173',
     'https://coffeeebrewwebsite.vercel.app',
@@ -81,7 +205,7 @@ export default async function handler(req, res) {
 
   const origin = req.headers.origin;
 
-  if (allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
 
@@ -90,19 +214,13 @@ export default async function handler(req, res) {
   res.setHeader('Vary', 'Origin');
 
 
-  // =====================================================
-  // OPTIONS / PREFLIGHT
-  // =====================================================
-
+  // PREFLIGHT
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    return res.status(200).end();
   }
 
 
-  // =====================================================
   // ONLY POST
-  // =====================================================
-
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Method not allowed',
@@ -111,27 +229,19 @@ export default async function handler(req, res) {
 
 
   try {
-
-    // ===================================================
-    // GET USER MESSAGE + HISTORY
-    // ===================================================
-
     const userMessage = req.body?.message;
     const history = Array.isArray(req.body?.history)
       ? req.body.history
       : [];
 
 
+    // VALIDATE MESSAGE
     if (!userMessage || typeof userMessage !== 'string') {
       return res.status(400).json({
         error: 'A message string is required.',
       });
     }
 
-
-    // ===================================================
-    // MESSAGE LENGTH
-    // ===================================================
 
     if (userMessage.length > 500) {
       return res.status(400).json({
@@ -140,92 +250,46 @@ export default async function handler(req, res) {
     }
 
 
-    // ===================================================
-    // GROQ API KEY
-    // ===================================================
-
+    // GET GROQ KEY
     const apiKey = process.env.GROQ_API_KEY;
 
+
+    // =====================================================
+    // IF KEY IS MISSING -> FALLBACK
+    // =====================================================
     if (!apiKey) {
-      console.error('GROQ_API_KEY is not configured.');
-      return res.status(500).json({
-        error: 'Groq API key is not configured on Vercel.',
+      console.error('GROQ_API_KEY is missing. Using local fallback.');
+
+      return res.status(200).json({
+        reply: getFallbackReply(userMessage),
+        source: 'fallback',
       });
     }
 
 
-    // ===================================================
+    // =====================================================
     // SYSTEM PROMPT
-    // ===================================================
-    // This is the actual lever that improves answer quality.
-    // A model can't "learn" from chats, but it responds much
-    // better when told EXACTLY how to format, when to ask a
-    // follow-up, and when to proactively suggest something —
-    // instead of just "answer questions."
-    // ===================================================
+    // =====================================================
 
     const systemPrompt = `
-You are Bru, the in-house virtual barista for Brew Haven, a coffee shop.
+You are Bru, the virtual barista for Brew Haven.
 
-KNOWLEDGE YOU HAVE (this is real, current shop information — use it
-to answer directly and specifically, including exact prices and times
-when relevant):
+Use the following Brew Haven information to answer:
 
 ${BUSINESS_INFO}
 
-HOW TO ANSWER — READ THIS CAREFULLY:
-
-1. BE SPECIFIC, NEVER VAGUE.
-   - Bad: "We have several coffee options."
-   - Good: "Cappuccino is ₹149, Cold Brew is ₹159 — Cappuccino's our best seller."
-   - Always give the real price, real time, or real item name from the
-     knowledge above. A vague answer is a failed answer.
-
-2. FORMAT MENU / MULTI-ITEM ANSWERS AS A SHORT LIST.
-   - If a customer asks for the menu, prices, or "what do you have",
-     use short line breaks or a dash-separated list, not one long
-     paragraph. Easy to scan on a phone screen.
-
-3. ALWAYS END WITH ONE SMALL NEXT STEP WHEN IT MAKES SENSE.
-   - After answering, if natural, add ONE short suggestion or question —
-     e.g. "Want me to recommend something cold?" or "Should I suggest a
-     pairing snack?" This makes the chat feel helpful, not just a lookup.
-   - Skip this if the customer's question was already fully closed
-     (e.g. "what time do you close" doesn't need a follow-up).
-
-4. USE PREFERENCES TO RECOMMEND, DON'T JUST LIST EVERYTHING.
-   - If a customer says things like "something strong", "not too sweet",
-     "cold", "cheap", or "quick" — narrow it down to 1–2 specific picks
-     from the menu, not the whole list.
-
-5. IF INFORMATION IS MISSING FROM THE KNOWLEDGE ABOVE:
-   - Say so honestly in one short sentence, and point them to staff or
-     a phone call. NEVER invent a price, ingredient, or policy that
-     isn't listed above — a wrong price is worse than no answer.
-
-6. IF THE QUESTION IS UNRELATED TO THE SHOP:
-   - Give one short, warm sentence acknowledging it, then steer back
-     to coffee/menu/hours. Don't lecture the customer.
-
-LANGUAGE RULE:
-- Always reply in English only, regardless of what language the
-  customer writes in. Keep it natural, friendly English — not stiff
-  or overly formal, like a real person at the counter would text.
-
-STYLE:
-- Warm, concise, confident. 2–4 short sentences unless the customer
-  clearly wants more detail (e.g. asked for the full menu).
-- At most one relevant emoji, only when it genuinely fits — don't
-  force one into every reply.
-- Never start every message the same way (e.g. don't always open with
-  "Great question!" or "Sure!"). Vary the opening naturally.
-    `.trim();
+RULES:
+- Always reply in English.
+- Be friendly and concise.
+- Give exact prices when relevant.
+- Never invent business information.
+- If information is unavailable, say so honestly.
+- Recommend 1 or 2 specific items when the user asks for a recommendation.
+- Keep normal answers under 4 short sentences unless the full menu is requested.
+`.trim();
 
 
-    // ===================================================
-    // BUILD MESSAGE LIST (with light recent history)
-    // ===================================================
-
+    // BUILD HISTORY
     const trimmedHistory = history
       .filter(
         (item) =>
@@ -240,98 +304,136 @@ STYLE:
       }));
 
 
-    // ===================================================
-    // GROQ API REQUEST
-    // ===================================================
+    // =====================================================
+    // GROQ REQUEST WITH TIMEOUT
+    // =====================================================
 
-    const response = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...trimmedHistory,
-            { role: 'user', content: userMessage },
-          ],
-          temperature: 0.65,
-          max_tokens: 320,
-        }),
-      }
-    );
+    const controller = new AbortController();
+
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 15000);
 
 
-    // ===================================================
-    // READ GROQ RESPONSE
-    // ===================================================
+    let response;
+
+    try {
+      response = await fetch(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey.trim()}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt,
+              },
+              ...trimmedHistory,
+              {
+                role: 'user',
+                content: userMessage,
+              },
+            ],
+            temperature: 0.65,
+            max_tokens: 320,
+          }),
+        }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
 
     const responseText = await response.text();
 
-    console.log('Groq response status:', response.status);
+    console.log('Groq status:', response.status);
+    console.log(
+      'Groq response:',
+      responseText.substring(0, 1000)
+    );
 
 
-    // ===================================================
-    // GROQ ERROR
-    // ===================================================
+    // =====================================================
+    // GROQ FAILED -> FALLBACK
+    // =====================================================
 
     if (!response.ok) {
-      console.error('Groq API error:', response.status, responseText);
-      return res.status(502).json({
-        error: 'AI service failed.',
+      console.error(
+        'Groq API failed:',
+        response.status,
+        responseText
+      );
+
+      // IMPORTANT:
+      // Return 200 with a useful response instead of 502.
+      // Your chatbot keeps working during temporary AI issues.
+      return res.status(200).json({
+        reply: getFallbackReply(userMessage),
+        source: 'fallback',
       });
     }
 
 
-    // ===================================================
-    // PARSE JSON
-    // ===================================================
-
+    // PARSE RESPONSE
     let data;
 
     try {
       data = JSON.parse(responseText);
     } catch (error) {
       console.error('Groq JSON parse error:', error);
-      return res.status(502).json({
-        error: 'Invalid response received from AI service.',
+
+      return res.status(200).json({
+        reply: getFallbackReply(userMessage),
+        source: 'fallback',
       });
     }
 
 
-    // ===================================================
-    // GET AI RESPONSE
-    // ===================================================
+    // GET REPLY
+    const reply = data?.choices?.[0]?.message?.content?.trim();
 
-    const reply = data?.choices?.[0]?.message?.content;
 
+    // NO REPLY -> FALLBACK
     if (!reply) {
-      console.error('Groq returned no reply:', JSON.stringify(data));
-      return res.status(502).json({
-        error: 'AI service did not return a response.',
+      console.error(
+        'Groq returned no valid reply:',
+        JSON.stringify(data)
+      );
+
+      return res.status(200).json({
+        reply: getFallbackReply(userMessage),
+        source: 'fallback',
       });
     }
 
 
-    // ===================================================
     // SUCCESS
-    // ===================================================
-
     return res.status(200).json({
-      reply: reply.trim(),
+      reply,
+      source: 'groq',
     });
 
 
   } catch (error) {
+    console.error(
+      'Chatbot server error:',
+      error?.name,
+      error?.message
+    );
 
-    console.error('Vercel chatbot error:', error);
 
-    return res.status(500).json({
-      error: 'Something went wrong talking to the AI service.',
+    // AI/network error -> chatbot still works
+    return res.status(200).json({
+      reply: getFallbackReply(
+        req.body?.message || ''
+      ),
+      source: 'fallback',
     });
   }
 }
