@@ -288,3 +288,224 @@
   .admin-form-row .primary-btn { width: 100%; }
   .admin-stats-row { grid-template-columns: 1fr; }
 }
+/* ============================================================
+   STOCK MANAGEMENT
+   ============================================================ */
+
+.admin-stock-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+
+/* Stock +/- control */
+
+.stock-control {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  border-radius: 5px;
+  overflow: hidden;
+  background: rgba(13, 8, 5, 0.45);
+}
+
+
+.stock-btn {
+  width: 32px;
+  height: 32px;
+
+  border: none;
+
+  background: rgba(201, 149, 108, 0.10);
+
+  color: var(--gold-light);
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 1.15rem;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: none;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
+}
+
+
+.stock-btn:hover:not(:disabled) {
+  background: var(--gold);
+  color: var(--espresso);
+}
+
+
+.stock-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+
+/* Number shown in stock */
+
+.stock-number-input {
+  width: 62px;
+  height: 32px;
+
+  border: none;
+
+  border-left: 1px solid rgba(201, 149, 108, 0.15);
+  border-right: 1px solid rgba(201, 149, 108, 0.15);
+
+  background: transparent;
+
+  color: var(--cream);
+
+  text-align: center;
+
+  font-family: 'Bebas Neue', sans-serif;
+
+  font-size: 1.15rem;
+
+  outline: none;
+}
+
+
+.stock-number-input:focus {
+  background: rgba(201, 149, 108, 0.08);
+}
+
+
+/* Remove browser arrows */
+
+.stock-number-input::-webkit-inner-spin-button,
+.stock-number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+
+.stock-number-input {
+  -moz-appearance: textfield;
+}
+
+
+/* Set button */
+
+.stock-edit-link {
+  display: block;
+
+  margin-top: 0.35rem;
+
+  padding: 0;
+
+  border: none;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.65rem;
+
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+
+  cursor: none;
+
+  transition: color 0.25s ease;
+}
+
+
+.stock-edit-link:hover {
+  color: var(--gold-light);
+}
+
+
+/* Low-stock threshold */
+
+.stock-threshold-input {
+  width: 70px;
+
+  padding: 0.45rem 0.5rem;
+
+  background: rgba(28, 16, 7, 0.7);
+
+  border: 1px solid rgba(201, 149, 108, 0.20);
+
+  color: var(--cream);
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.82rem;
+
+  text-align: center;
+
+  border-radius: 4px;
+
+  outline: none;
+}
+
+
+.stock-threshold-input:focus {
+  border-color: var(--gold);
+}
+
+
+.stock-threshold-input::-webkit-inner-spin-button,
+.stock-threshold-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+
+.stock-threshold-input {
+  -moz-appearance: textfield;
+}
+
+
+/* ============================================================
+   STOCK TABLE
+   ============================================================ */
+
+.admin-table th:nth-child(4),
+.admin-table td:nth-child(4) {
+  min-width: 145px;
+}
+
+
+.admin-table th:nth-child(5),
+.admin-table td:nth-child(5) {
+  min-width: 100px;
+}
+
+
+/* ============================================================
+   RESPONSIVE STOCK
+   ============================================================ */
+
+@media (max-width: 900px) {
+
+  .admin-stock-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+
+@media (max-width: 700px) {
+
+  .admin-stock-summary {
+    grid-template-columns: 1fr;
+  }
+
+
+  .stock-control {
+    display: flex;
+    width: fit-content;
+  }
+
+}
