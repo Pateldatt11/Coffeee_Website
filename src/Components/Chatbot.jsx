@@ -1,4 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import "./Chatbot.css";
 
 const CHATBOT_URL = "/api/chat";
@@ -9,18 +14,20 @@ export default function Chatbot() {
   const [messages, setMessages] = useState([
     {
       role: "bot",
-      text: "Hey! Welcome to Brew Haven ☕ How can I help you?",
+      text:
+        "Hey! Welcome to Brew Haven ☕ How can I help you?",
     },
   ]);
 
   const [input, setInput] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
 
-  // ============================================================
+  // ==========================================================
   // AUTO SCROLL
-  // ============================================================
+  // ==========================================================
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -28,9 +35,9 @@ export default function Chatbot() {
     });
   }, [messages, loading]);
 
-  // ============================================================
+  // ==========================================================
   // SEND MESSAGE
-  // ============================================================
+  // ==========================================================
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -50,41 +57,40 @@ export default function Chatbot() {
     ];
 
     setMessages(updatedMessages);
+
     setInput("");
+
     setLoading(true);
 
     try {
-      // --------------------------------------------------------
-      // SEND ONLY RECENT HISTORY
-      // --------------------------------------------------------
-
+      // Send only recent conversation
       const history = updatedMessages
         .slice(-8)
-        .map((message) => ({
-          role: message.role,
-          text: message.text,
+        .map((item) => ({
+          role: item.role,
+          text: item.text,
         }));
 
-      // --------------------------------------------------------
-      // API REQUEST
-      // --------------------------------------------------------
+      console.log(
+        "[BREW HAVEN CHATBOT] Sending:",
+        text
+      );
 
-      const response = await fetch(CHATBOT_URL, {
-        method: "POST",
+      const response = await fetch(
+        CHATBOT_URL,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-        body: JSON.stringify({
-          message: text,
-          history,
-        }),
-      });
-
-      // --------------------------------------------------------
-      // READ RESPONSE
-      // --------------------------------------------------------
+          body: JSON.stringify({
+            message: text,
+            history,
+          }),
+        }
+      );
 
       let data = null;
 
@@ -95,24 +101,16 @@ export default function Chatbot() {
       }
 
       console.log(
-        "[BREW HAVEN CHATBOT] API response:",
+        "[BREW HAVEN CHATBOT] Response:",
         data
       );
-
-      // --------------------------------------------------------
-      // API ERROR
-      // --------------------------------------------------------
 
       if (!response.ok) {
         throw new Error(
           data?.error ||
-            "The chatbot service is temporarily unavailable."
+            "Chatbot service unavailable."
         );
       }
-
-      // --------------------------------------------------------
-      // BOT RESPONSE
-      // --------------------------------------------------------
 
       const reply =
         typeof data?.reply === "string"
@@ -121,7 +119,7 @@ export default function Chatbot() {
 
       if (!reply) {
         throw new Error(
-          "The chatbot returned an empty response."
+          "Empty chatbot response."
         );
       }
 
@@ -132,6 +130,7 @@ export default function Chatbot() {
           text: reply,
         },
       ]);
+
     } catch (error) {
       console.error(
         "[BREW HAVEN CHATBOT] Error:",
@@ -144,46 +143,51 @@ export default function Chatbot() {
           role: "bot",
           text:
             "I'm having trouble connecting right now. Please try again in a moment.",
-          error: true,
         },
       ]);
+
     } finally {
       setLoading(false);
     }
   };
 
-  // ============================================================
+  // ==========================================================
   // ENTER KEY
-  // ============================================================
+  // ==========================================================
 
   const handleKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
       event.preventDefault();
+
       sendMessage();
     }
   };
 
-  // ============================================================
+  // ==========================================================
   // CLEAR CHAT
-  // ============================================================
+  // ==========================================================
 
   const clearChat = () => {
     setMessages([
       {
         role: "bot",
-        text: "Hey! Welcome to Brew Haven ☕ How can I help you?",
+        text:
+          "Hey! Welcome to Brew Haven ☕ How can I help you?",
       },
     ]);
   };
 
-  // ============================================================
+  // ==========================================================
   // UI
-  // ============================================================
+  // ==========================================================
 
   return (
     <>
       {/* ======================================================
-          FLOATING CHAT BUTTON
+          FLOATING BUTTON
       ====================================================== */}
 
       {!isOpen && (
@@ -203,9 +207,7 @@ export default function Chatbot() {
       {isOpen && (
         <div className="chatbot-container">
 
-          {/* ==================================================
-              HEADER
-          ================================================== */}
+          {/* HEADER */}
 
           <div className="chatbot-header">
 
@@ -239,7 +241,9 @@ export default function Chatbot() {
 
               <button
                 className="chatbot-header-button"
-                onClick={() => setIsOpen(false)}
+                onClick={() =>
+                  setIsOpen(false)
+                }
                 title="Close"
               >
                 ×
@@ -255,24 +259,24 @@ export default function Chatbot() {
 
           <div className="chatbot-messages">
 
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={
-                  message.role === "user"
-                    ? "chatbot-message user-message"
-                    : "chatbot-message bot-message"
-                }
-              >
-                <div className="chatbot-message-bubble">
-                  {message.text}
+            {messages.map(
+              (message, index) => (
+                <div
+                  key={index}
+                  className={
+                    message.role === "user"
+                      ? "chatbot-message user-message"
+                      : "chatbot-message bot-message"
+                  }
+                >
+                  <div className="chatbot-message-bubble">
+                    {message.text}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
 
-            {/* =================================================
-                LOADING
-            ================================================= */}
+            {/* LOADING */}
 
             {loading && (
               <div className="chatbot-message bot-message">
@@ -288,7 +292,9 @@ export default function Chatbot() {
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+            <div
+              ref={messagesEndRef}
+            />
 
           </div>
 
@@ -302,7 +308,9 @@ export default function Chatbot() {
               type="text"
               value={input}
               onChange={(event) =>
-                setInput(event.target.value)
+                setInput(
+                  event.target.value
+                )
               }
               onKeyDown={handleKeyDown}
               placeholder="Ask about coffee, menu, hours..."
