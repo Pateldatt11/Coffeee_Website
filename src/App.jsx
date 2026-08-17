@@ -18,6 +18,7 @@ import ScrollToTop from './Components/ScrollToTop';
 import ProtectedRoute from './Components/Protectedroute';
 import { trackVisit } from './utils/visitTracker';
 import Chatbot from './Components/Chatbot';
+import { ThemeProvider } from './context/ThemeContext';
 
 
 
@@ -102,88 +103,90 @@ function App() {
   }, [location.pathname]);
 
   return (
-    <div className="app-layout">
-      <Nav />
-      <ScrollToTop />
+    <ThemeProvider>
+      <div className="app-layout">
+        <Nav />
+        <ScrollToTop />
 
-      <main>
-        <Routes>
-
-
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/menu" element={
-            <ProtectedRoute>
-              <Menu />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/about" element={
-            <ProtectedRoute>
-              <About />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/faq" element={
-            <ProtectedRoute>
-              <FAQ />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/order" element={
-            <ProtectedRoute>
-              <OrderOnline />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/admin" element={
-            <ProtectedRoute>
-              <AdminPanel />
-            </ProtectedRoute>
-          } />
+        <main>
+          <Routes>
 
 
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/login"  element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/menu" element={
+              <ProtectedRoute>
+                <Menu />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/about" element={
+              <ProtectedRoute>
+                <About />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/faq" element={
+              <ProtectedRoute>
+                <FAQ />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/order" element={
+              <ProtectedRoute>
+                <OrderOnline />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminPanel />
+              </ProtectedRoute>
+            } />
+
+
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/login"  element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
 
 
-          <Route path="*" element={
-            <div style={{
-              padding: '100px 20px',
-              textAlign: 'center',
-              color: '#e0c9a6',
-              fontSize: '1.8rem'
-            }}>
-              <h1>404 - Page Not Found</h1>
+            <Route path="*" element={
+              <div style={{
+                padding: '100px 20px',
+                textAlign: 'center',
+                color: '#e0c9a6',
+                fontSize: '1.8rem'
+              }}>
+                <h1>404 - Page Not Found</h1>
 
-              <spline-viewer url="https://prod.spline.design/fOXZ4F6vStngxFR0/scene.splinecode"></spline-viewer>
+                <spline-viewer url="https://prod.spline.design/fOXZ4F6vStngxFR0/scene.splinecode"></spline-viewer>
 
-              <p>
-                Page Not Found ☕<br />
-                Come Home Page <a href="/">Click Here</a>
-              </p>
-            </div>
-          } />
+                <p>
+                  Page Not Found ☕<br />
+                  Come Home Page <a href="/">Click Here</a>
+                </p>
+              </div>
+            } />
 
-        </Routes>
-      </main>
+          </Routes>
+        </main>
 
-      <Footer />
-      <Chatbot />
-    </div>
+        <Footer />
+        <Chatbot />
+      </div>
+    </ThemeProvider>
   );
 }
 
