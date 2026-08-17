@@ -1,496 +1,579 @@
-@import './Login.css';
+/* ============================================================
+   SMART INVENTORY MANAGEMENT SYSTEM
+============================================================ */
 
-/* ==================== ADMINPANEL.CSS ====================
-  Imports Login.css so colors, fonts, cursor dot/ring animation,
-  and hover effects are 100% identical to the rest of the site.
-  Everything below is NEW — only for elements Login.css never
-  had to style: tabs, tables, and the menu-add form.
-  ========================================================= */
-
-.admin-page {
-  font-family: 'DM Sans', sans-serif;
-  color: var(--cream);
-  background: var(--espresso);
-  min-height: 100vh;
-  padding: 90px 3rem 3rem;
-  cursor: none;
+.smart-inventory-section {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
 }
 
-.admin-header {
+.smart-inventory-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.admin-logout-btn { width: auto; padding: 0.7rem 1.6rem; }
-
-.admin-tabs {
-  display: flex;
-  gap: 0.6rem;
-  border-bottom: 1px solid rgba(201, 149, 108, 0.18);
-  margin-bottom: 2rem;
-}
-
-.admin-tab {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.9rem 1.4rem;
-  cursor: none;
-  border-bottom: 2px solid transparent;
-  transition: color 0.3s, border-color 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-tab:hover { color: var(--gold-light); }
-
-.admin-tab.active {
-  color: var(--gold);
-  border-bottom-color: var(--gold);
-}
-
-.admin-tab-count {
-  background: var(--gold-dim);
-  color: var(--gold-light);
-  font-size: 0.68rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 10px;
-}
-
-.admin-panel-block { animation: revealUp 0.5s var(--transition) both; }
-
-.admin-empty {
-  color: var(--muted);
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  padding: 2rem 0;
-}
-
-.admin-table-wrap {
-  overflow-x: auto;
-  border: 1px solid rgba(201, 149, 108, 0.15);
-  border-radius: 6px;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.admin-table th {
-  text-align: left;
-  padding: 0.9rem 1rem;
-  background: var(--mocha);
-  color: var(--gold);
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.admin-table td {
-  padding: 0.8rem 1rem;
-  border-top: 1px solid rgba(201, 149, 108, 0.1);
-  vertical-align: middle;
-}
-
-.admin-table tbody tr:hover { background: rgba(201, 149, 108, 0.05); }
-
-.admin-subtext { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
-
-.admin-select {
-  background: rgba(28, 16, 7, 0.7);
-  color: var(--cream);
-  border: 1px solid rgba(201, 149, 108, 0.25);
-  padding: 0.4rem 0.6rem;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.8rem;
-  border-radius: 4px;
-  cursor: none;
-}
-
-.admin-select:focus { outline: none; border-color: var(--gold); }
-
-.admin-delete-btn {
-  background: rgba(224, 112, 96, 0.12);
-  border: 1px solid rgba(224, 112, 96, 0.35);
-  color: #e07060;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  border-radius: 4px;
-  cursor: none;
-  transition: all 0.25s;
-}
-
-.admin-delete-btn:hover { background: rgba(224, 112, 96, 0.22); border-color: #e07060; }
-
-.admin-inline-input {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--cream);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.85rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 3px;
-  width: 100%;
-  cursor: none;
-  transition: border-color 0.2s, background 0.2s;
-}
-
-.admin-inline-input:hover,
-.admin-inline-input:focus {
-  border-color: rgba(201, 149, 108, 0.35);
-  background: rgba(28, 16, 7, 0.5);
-  outline: none;
-}
-
-.admin-price-input { max-width: 90px; }
-
-.admin-thumb {
-  width: 42px; height: 42px;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid rgba(201, 149, 108, 0.2);
-}
-
-.admin-seed-box {
-  background: var(--mocha);
-  border: 1px solid rgba(201, 149, 108, 0.25);
-  border-radius: 6px;
-  padding: 1.2rem 1.4rem;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  margin-bottom: 1.2rem;
   flex-wrap: wrap;
-  gap: 1rem;
 }
 
-.admin-seed-box p { font-size: 0.85rem; color: var(--muted); max-width: 480px; }
-.admin-seed-box code { color: var(--gold-light); }
-.admin-seed-box .primary-btn { width: auto; }
-
-.admin-add-form { margin-bottom: 1.5rem; }
-
-.admin-form-row {
-  display: flex;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.admin-form-row input {
-  flex: 1;
-  min-width: 140px;
-  padding: 0.75rem 1rem;
-  background: rgba(28, 16, 7, 0.7);
-  border: 1px solid rgba(201, 149, 108, 0.2);
+.smart-inventory-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
   color: var(--cream);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.85rem;
-  border-radius: 4px;
-  cursor: none;
+  letter-spacing: 0.04em;
+  margin: 0.15rem 0 0;
 }
 
-.admin-form-row input:focus { outline: none; border-color: var(--gold); }
-.admin-form-row .primary-btn { width: auto; padding: 0.75rem 1.6rem; }
+.smart-inventory-title em {
+  color: var(--gold);
+  font-style: normal;
+}
 
-/* ================= ANALYTICS TAB ================= */
+.smart-inventory-description {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
 
-.admin-stats-row {
+
+/* ============================================================
+   INVENTORY ALERT CARDS
+============================================================ */
+
+.inventory-alert-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
-  margin-bottom: 1.8rem;
+  margin-bottom: 1.3rem;
 }
 
-.admin-stat-card {
-  background: var(--mocha);
-  border: 1px solid rgba(201, 149, 108, 0.2);
-  border-radius: 10px;
-  padding: 1.3rem;
-}
-
-.admin-stat-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.5rem;
-}
-
-.admin-stat-value {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2.2rem;
-  color: var(--gold);
-  line-height: 1;
-  margin-bottom: 0.4rem;
-}
-
-.admin-stat-sub { font-size: 0.72rem; color: var(--muted); }
-
-.admin-charts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.2rem;
-}
-
-.admin-chart-wide { grid-column: 1 / -1; }
-
-.admin-chart-card {
-  background: var(--mocha);
-  border: 1px solid rgba(201, 149, 108, 0.2);
-  border-radius: 10px;
-  padding: 1.4rem;
-}
-
-.admin-chart-card h4 {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.3rem;
-  color: var(--cream);
-  letter-spacing: 0.02em;
-  margin-bottom: 0.3rem;
-}
-
-.admin-chart-card p {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-bottom: 1rem;
-}
-
-.admin-chart-wrap { position: relative; height: 260px; }
-
-@media (max-width: 900px) {
-  .admin-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .admin-charts-grid { grid-template-columns: 1fr; }
-}
-.admin-row-flagged {
-  background: rgba(224, 112, 96, 0.08);
-}
-.admin-rating-cell {
-  color: var(--gold);
-  letter-spacing: 2px;
-}
-@media (max-width: 700px) {
-  .admin-page { padding: 90px 1.2rem 2rem; }
-  .admin-form-row { flex-direction: column; align-items: stretch; }
-  .admin-form-row .primary-btn { width: 100%; }
-  .admin-stats-row { grid-template-columns: 1fr; }
-}
-/* ============================================================
-   STOCK MANAGEMENT
-   ============================================================ */
-
-.admin-stock-summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-
-/* Stock +/- control */
-
-.stock-control {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(201, 149, 108, 0.25);
-  border-radius: 5px;
+.inventory-alert-card {
+  position: relative;
   overflow: hidden;
-  background: rgba(13, 8, 5, 0.45);
-}
 
+  background: var(--mocha);
 
-.stock-btn {
-  width: 32px;
-  height: 32px;
+  border: 1px solid rgba(201, 149, 108, 0.20);
 
-  border: none;
+  border-radius: 10px;
 
-  background: rgba(201, 149, 108, 0.10);
-
-  color: var(--gold-light);
-
-  font-family: 'DM Sans', sans-serif;
-
-  font-size: 1.15rem;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  cursor: none;
+  padding: 1.25rem;
 
   transition:
-    background 0.25s ease,
-    color 0.25s ease;
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
 }
 
-
-.stock-btn:hover:not(:disabled) {
-  background: var(--gold);
-  color: var(--espresso);
-}
-
-
-.stock-btn:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-}
-
-
-/* Number shown in stock */
-
-.stock-number-input {
-  width: 62px;
-  height: 32px;
-
-  border: none;
-
-  border-left: 1px solid rgba(201, 149, 108, 0.15);
-  border-right: 1px solid rgba(201, 149, 108, 0.15);
-
-  background: transparent;
-
-  color: var(--cream);
-
-  text-align: center;
-
-  font-family: 'Bebas Neue', sans-serif;
-
-  font-size: 1.15rem;
-
-  outline: none;
-}
-
-
-.stock-number-input:focus {
+.inventory-alert-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(201, 149, 108, 0.42);
   background: rgba(201, 149, 108, 0.08);
 }
 
+.inventory-alert-card::after {
+  content: '';
 
-/* Remove browser arrows */
+  position: absolute;
 
-.stock-number-input::-webkit-inner-spin-button,
-.stock-number-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+  width: 80px;
+  height: 80px;
+
+  right: -30px;
+  bottom: -30px;
+
+  border-radius: 50%;
+
+  background: rgba(201, 149, 108, 0.08);
 }
 
-
-.stock-number-input {
-  -moz-appearance: textfield;
-}
-
-
-/* Set button */
-
-.stock-edit-link {
-  display: block;
-
-  margin-top: 0.35rem;
-
-  padding: 0;
-
-  border: none;
-
-  background: transparent;
-
+.inventory-alert-label {
   color: var(--muted);
 
-  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
 
-  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+
+  text-transform: uppercase;
+
+  margin-bottom: 0.5rem;
+}
+
+.inventory-alert-value {
+  font-family: 'Bebas Neue', sans-serif;
+
+  font-size: 2.3rem;
+
+  line-height: 1;
+
+  color: var(--gold);
+
+  margin-bottom: 0.35rem;
+}
+
+.inventory-alert-sub {
+  color: var(--muted);
+
+  font-size: 0.7rem;
+}
+
+
+/* ============================================================
+   ALERT STATUS
+============================================================ */
+
+.inventory-status-badge {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 0.35rem;
+
+  margin-top: 0.7rem;
+
+  padding: 0.28rem 0.55rem;
+
+  border-radius: 20px;
+
+  font-size: 0.62rem;
 
   letter-spacing: 0.08em;
 
   text-transform: uppercase;
+}
 
-  cursor: none;
+.inventory-status-badge.healthy {
+  color: #9ed49e;
 
-  transition: color 0.25s ease;
+  background: rgba(93, 171, 93, 0.10);
+
+  border: 1px solid rgba(93, 171, 93, 0.25);
+}
+
+.inventory-status-badge.warning {
+  color: #e8c99a;
+
+  background: rgba(232, 201, 154, 0.10);
+
+  border: 1px solid rgba(232, 201, 154, 0.25);
+}
+
+.inventory-status-badge.danger {
+  color: #e07060;
+
+  background: rgba(224, 112, 96, 0.10);
+
+  border: 1px solid rgba(224, 112, 96, 0.25);
 }
 
 
-.stock-edit-link:hover {
-  color: var(--gold-light);
+/* ============================================================
+   LOW STOCK ALERT BOX
+============================================================ */
+
+.low-stock-alert-box {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(224, 112, 96, 0.08),
+      rgba(201, 149, 108, 0.04)
+    );
+
+  border: 1px solid rgba(224, 112, 96, 0.25);
+
+  border-radius: 10px;
+
+  padding: 1.25rem;
+
+  margin-bottom: 1.3rem;
 }
 
+.low-stock-alert-box.healthy {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(93, 171, 93, 0.07),
+      rgba(201, 149, 108, 0.03)
+    );
 
-/* Low-stock threshold */
+  border-color: rgba(93, 171, 93, 0.22);
+}
 
-.stock-threshold-input {
-  width: 70px;
+.low-stock-alert-heading {
+  display: flex;
 
-  padding: 0.45rem 0.5rem;
+  align-items: center;
 
-  background: rgba(28, 16, 7, 0.7);
+  justify-content: space-between;
 
-  border: 1px solid rgba(201, 149, 108, 0.20);
+  gap: 1rem;
+
+  flex-wrap: wrap;
+
+  margin-bottom: 1rem;
+}
+
+.low-stock-alert-heading-left {
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.7rem;
+}
+
+.low-stock-alert-icon {
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(224, 112, 96, 0.12);
+
+  border: 1px solid rgba(224, 112, 96, 0.25);
+
+  color: #e07060;
+
+  font-size: 1rem;
+}
+
+.low-stock-alert-box.healthy
+.low-stock-alert-icon {
+  background: rgba(93, 171, 93, 0.10);
+
+  border-color: rgba(93, 171, 93, 0.25);
+
+  color: #9ed49e;
+}
+
+.low-stock-alert-heading h4 {
+  font-family: 'Bebas Neue', sans-serif;
+
+  font-size: 1.3rem;
 
   color: var(--cream);
 
-  font-family: 'DM Sans', sans-serif;
+  margin: 0;
+}
 
-  font-size: 0.82rem;
+.low-stock-alert-heading p {
+  color: var(--muted);
 
-  text-align: center;
+  font-size: 0.72rem;
+
+  margin: 0.15rem 0 0;
+}
+
+
+/* ============================================================
+   ALERT ITEMS
+============================================================ */
+
+.low-stock-items {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(230px, 1fr)
+    );
+
+  gap: 0.75rem;
+}
+
+.low-stock-item {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 0.8rem;
+
+  background: rgba(13, 8, 5, 0.35);
+
+  border: 1px solid rgba(224, 112, 96, 0.16);
+
+  border-radius: 7px;
+
+  padding: 0.75rem 0.85rem;
+}
+
+.low-stock-item-info {
+  min-width: 0;
+}
+
+.low-stock-item-name {
+  color: var(--cream);
+
+  font-size: 0.8rem;
+
+  font-weight: 600;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.low-stock-item-category {
+  color: var(--muted);
+
+  font-size: 0.65rem;
+
+  margin-top: 0.15rem;
+}
+
+.low-stock-item-stock {
+  text-align: right;
+
+  flex-shrink: 0;
+}
+
+.low-stock-current {
+  font-family: 'Bebas Neue', sans-serif;
+
+  font-size: 1.3rem;
+
+  color: #e07060;
+
+  line-height: 1;
+}
+
+.low-stock-threshold {
+  color: var(--muted);
+
+  font-size: 0.6rem;
+
+  margin-top: 0.15rem;
+}
+
+
+/* ============================================================
+   INVENTORY PROGRESS BAR
+============================================================ */
+
+.inventory-progress {
+  width: 100%;
+
+  height: 5px;
+
+  margin-top: 0.55rem;
+
+  background: rgba(255,255,255,0.06);
+
+  border-radius: 10px;
+
+  overflow: hidden;
+}
+
+.inventory-progress-bar {
+  height: 100%;
+
+  border-radius: 10px;
+
+  background: var(--gold);
+
+  transition: width 0.35s ease;
+}
+
+.inventory-progress-bar.low {
+  background: #e8c99a;
+}
+
+.inventory-progress-bar.empty {
+  background: #e07060;
+}
+
+
+/* ============================================================
+   INVENTORY TABLE
+============================================================ */
+
+.inventory-table-section {
+  background: var(--mocha);
+
+  border: 1px solid rgba(201, 149, 108, 0.20);
+
+  border-radius: 10px;
+
+  overflow: hidden;
+}
+
+.inventory-table-header {
+  padding: 1.2rem 1.3rem;
+
+  border-bottom: 1px solid rgba(201, 149, 108, 0.12);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 1rem;
+
+  flex-wrap: wrap;
+}
+
+.inventory-table-header h4 {
+  font-family: 'Bebas Neue', sans-serif;
+
+  font-size: 1.3rem;
+
+  color: var(--cream);
+
+  margin: 0;
+}
+
+.inventory-table-header p {
+  color: var(--muted);
+
+  font-size: 0.7rem;
+
+  margin: 0.15rem 0 0;
+}
+
+.inventory-filter {
+  background: rgba(28, 16, 7, 0.7);
+
+  color: var(--cream);
+
+  border: 1px solid rgba(201, 149, 108, 0.25);
+
+  padding: 0.5rem 0.7rem;
 
   border-radius: 4px;
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.72rem;
 
   outline: none;
 }
 
-
-.stock-threshold-input:focus {
+.inventory-filter:focus {
   border-color: var(--gold);
 }
 
 
-.stock-threshold-input::-webkit-inner-spin-button,
-.stock-threshold-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* ============================================================
+   STOCK STATUS CELL
+============================================================ */
+
+.inventory-status {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 0.4rem;
+
+  padding: 0.3rem 0.55rem;
+
+  border-radius: 20px;
+
+  font-size: 0.62rem;
+
+  letter-spacing: 0.05em;
+
+  text-transform: uppercase;
 }
 
+.inventory-status.in-stock {
+  color: #9ed49e;
 
-.stock-threshold-input {
-  -moz-appearance: textfield;
+  background: rgba(93, 171, 93, 0.10);
+
+  border: 1px solid rgba(93, 171, 93, 0.20);
+}
+
+.inventory-status.low {
+  color: #e8c99a;
+
+  background: rgba(232, 201, 154, 0.10);
+
+  border: 1px solid rgba(232, 201, 154, 0.20);
+}
+
+.inventory-status.out {
+  color: #e07060;
+
+  background: rgba(224, 112, 96, 0.10);
+
+  border: 1px solid rgba(224, 112, 96, 0.20);
 }
 
 
 /* ============================================================
-   STOCK TABLE
-   ============================================================ */
+   INVENTORY ACTION
+============================================================ */
 
-.admin-table th:nth-child(4),
-.admin-table td:nth-child(4) {
-  min-width: 145px;
+.inventory-restock-btn {
+  background: rgba(201, 149, 108, 0.10);
+
+  border: 1px solid rgba(201, 149, 108, 0.25);
+
+  color: var(--gold-light);
+
+  padding: 0.4rem 0.7rem;
+
+  border-radius: 4px;
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.68rem;
+
+  letter-spacing: 0.05em;
+
+  text-transform: uppercase;
+
+  cursor: none;
+
+  transition: all 0.25s ease;
 }
 
+.inventory-restock-btn:hover {
+  background: var(--gold);
 
-.admin-table th:nth-child(5),
-.admin-table td:nth-child(5) {
-  min-width: 100px;
+  border-color: var(--gold);
+
+  color: var(--espresso);
 }
 
 
 /* ============================================================
-   RESPONSIVE STOCK
-   ============================================================ */
+   INVENTORY EMPTY
+============================================================ */
 
-@media (max-width: 900px) {
+.inventory-empty {
+  text-align: center;
 
-  .admin-stock-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 2rem 1rem;
+
+  color: var(--muted);
+
+  font-family: 'Playfair Display', serif;
+
+  font-style: italic;
+
+  font-size: 0.9rem;
+}
+
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 1100px) {
+
+  .inventory-alert-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
   }
 
 }
@@ -498,14 +581,17 @@
 
 @media (max-width: 700px) {
 
-  .admin-stock-summary {
+  .inventory-alert-grid {
     grid-template-columns: 1fr;
   }
 
+  .low-stock-items {
+    grid-template-columns: 1fr;
+  }
 
-  .stock-control {
-    display: flex;
-    width: fit-content;
+  .inventory-table-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
 }

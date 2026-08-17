@@ -78,15 +78,10 @@ const formatCustomization = (c) => {
 };
 
 
-/*
-  IMPORTANT:
-  Old menu items may not have stock field.
+/* ============================================================
+   INVENTORY HELPERS
+============================================================ */
 
-  Instead of showing undefined, we treat missing stock as 0.
-
-  This means after adding this code, you should set stock
-  for your existing menu items from Admin Panel.
-*/
 const getStock = (item) => {
   const stock = Number(item?.stock);
 
@@ -106,6 +101,62 @@ const getLowStockAt = (item) => {
   }
 
   return Math.floor(value);
+};
+
+
+const getReorderLevel = (item) => {
+  const threshold = getLowStockAt(item);
+
+  return Math.max(
+    threshold * 3,
+    10
+  );
+};
+
+
+const getInventoryStatus = (item) => {
+  const stock = getStock(item);
+  const threshold = getLowStockAt(item);
+
+  if (stock === 0) {
+    return 'out';
+  }
+
+  if (stock <= threshold) {
+    return 'low';
+  }
+
+  return 'healthy';
+};
+
+
+const getInventoryStatusLabel = (item) => {
+  const status = getInventoryStatus(item);
+
+  if (status === 'out') {
+    return 'OUT OF STOCK';
+  }
+
+  if (status === 'low') {
+    return 'LOW STOCK';
+  }
+
+  return 'IN STOCK';
+};
+
+
+const getInventoryStatusClass = (item) => {
+  const status = getInventoryStatus(item);
+
+  if (status === 'out') {
+    return 'inventory-status-out';
+  }
+
+  if (status === 'low') {
+    return 'inventory-status-low';
+  }
+
+  return 'inventory-status-healthy';
 };
 
 
@@ -164,6 +215,15 @@ const AdminPanel = () => {
 
 
   /* ============================================================
+     INVENTORY
+  ============================================================ */
+
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryFilter, setInventoryFilter] = useState('all');
+  const [inventoryCategory, setInventoryCategory] = useState('all');
+
+
+  /* ============================================================
      CURSOR
   ============================================================ */
 
@@ -202,7 +262,10 @@ const AdminPanel = () => {
 
   useEffect(() => {
 
-    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener(
+      'mousemove',
+      onMouseMove
+    );
 
     const handleMouseOver = (e) => {
 
@@ -701,8 +764,6 @@ const AdminPanel = () => {
           price: priceNum,
           img: newItem.img.trim() || '',
 
-          /* STOCK */
-
           stock: stockNum,
           lowStockAt: lowStockNum,
 
@@ -980,7 +1041,7 @@ const AdminPanel = () => {
 
 
   /* ============================================================
-     SET STOCK
+     SET STOCK MANUALLY
   ============================================================ */
 
   const setStockManually = async (
@@ -1033,6 +1094,47 @@ const AdminPanel = () => {
 
       alert(
         'Could not update stock.'
+      );
+
+    }
+
+  };
+
+
+  /* ============================================================
+     QUICK RESTOCK
+  ============================================================ */
+
+  const quickRestock = async (
+    item,
+    quantity
+  ) => {
+
+    const current =
+      getStock(item);
+
+    const next =
+      current + quantity;
+
+
+    try {
+
+      await updateDoc(
+        doc(db, 'menu', item.id),
+        {
+          stock: next
+        }
+      );
+
+    } catch (err) {
+
+      console.error(
+        'Quick restock failed:',
+        err
+      );
+
+      alert(
+        'Could not restock item.'
       );
 
     }
@@ -1132,14 +1234,6 @@ const AdminPanel = () => {
               price: Number(
                 item.price
               ),
-
-              /*
-                IMPORTANT:
-                Seeded items get stock = 0.
-
-                You can later increase stock
-                from this Admin Panel.
-              */
 
               stock: Number(
                 item.stock ?? 0
@@ -1535,11 +1629,178 @@ const AdminPanel = () => {
       ).length;
 
 
+    const healthyStock =
+      menuItems.filter(
+        item =>
+          getInventoryStatus(item) ===
+          'healthy'
+      ).length;
+
+
+    const inventoryValue =
+      menuItems.reduce(
+        (sum, item) =>
+          sum +
+          (
+            getStock(item) *
+            (Number(item.price) || 0)
+          ),
+        0
+      );
+
+
+    const reorderRequired =
+      menuItems.filter(
+        item =>
+          getStock(item) <
+          getReorderLevel(item)
+      ).length;
+
+
     return {
       totalUnits,
       outOfStock,
-      lowStock
+      lowStock,
+      healthyStock,
+      inventoryValue,
+      reorderRequired
     };
+
+  }, [menuItems]);
+
+
+  /* ============================================================
+     SMART INVENTORY LIST
+  ============================================================ */
+
+  const inventoryCategories = useMemo(() => {
+
+    return [
+      'all',
+      ...Array.from(
+        new Set(
+          menuItems
+            .map(item =>
+              item.category
+            )
+            .filter(Boolean)
+        )
+      ).sort()
+    ];
+
+  }, [menuItems]);
+
+
+  const filteredInventory = useMemo(() => {
+
+    const search =
+      inventorySearch
+        .trim()
+        .toLowerCase();
+
+
+    return [...menuItems]
+      .filter(item => {
+
+        if (!search) {
+          return true;
+        }
+
+
+        return (
+          String(item.name || '')
+            .toLowerCase()
+            .includes(search) ||
+          String(item.category || '')
+            .toLowerCase()
+            .includes(search)
+        );
+
+      })
+      .filter(item => {
+
+        if (
+          inventoryCategory !==
+          'all'
+        ) {
+
+          return (
+            item.category ===
+            inventoryCategory
+          );
+
+        }
+
+        return true;
+
+      })
+      .filter(item => {
+
+        if (
+          inventoryFilter ===
+          'all'
+        ) {
+          return true;
+        }
+
+
+        return (
+          getInventoryStatus(item) ===
+          inventoryFilter
+        );
+
+      })
+      .sort((a, b) => {
+
+        const order = {
+          out: 0,
+          low: 1,
+          healthy: 2
+        };
+
+
+        return (
+          order[
+            getInventoryStatus(a)
+          ] -
+          order[
+            getInventoryStatus(b)
+          ]
+        );
+
+      });
+
+  }, [
+    menuItems,
+    inventorySearch,
+    inventoryFilter,
+    inventoryCategory
+  ]);
+
+
+  /* ============================================================
+     LOW STOCK ALERTS
+  ============================================================ */
+
+  const lowStockAlerts = useMemo(() => {
+
+    return menuItems
+      .filter(item => {
+
+        const stock =
+          getStock(item);
+
+        const threshold =
+          getLowStockAt(item);
+
+        return stock <= threshold;
+
+      })
+      .sort(
+        (a, b) =>
+          getStock(a) -
+          getStock(b)
+      );
 
   }, [menuItems]);
 
@@ -2157,6 +2418,7 @@ const AdminPanel = () => {
             }
 
           }
+
         );
 
     }
@@ -2275,6 +2537,7 @@ const AdminPanel = () => {
           }
         >
           Orders
+
           <span className="admin-tab-count">
             {orders.length}
           </span>
@@ -2292,9 +2555,45 @@ const AdminPanel = () => {
           }
         >
           Menu
+
           <span className="admin-tab-count">
             {menuItems.length}
           </span>
+        </button>
+
+
+        {/* ====================================================
+            NEW SMART INVENTORY TAB
+        ==================================================== */}
+
+        <button
+          className={`admin-tab ${
+            activeTab === 'inventory'
+              ? 'active'
+              : ''
+          }`}
+          onClick={() =>
+            setActiveTab('inventory')
+          }
+        >
+          Smart Inventory
+
+          {(
+            stockSummary.lowStock +
+            stockSummary.outOfStock
+          ) > 0 && (
+
+            <span
+              className="admin-tab-count inventory-alert-count"
+            >
+              {
+                stockSummary.lowStock +
+                stockSummary.outOfStock
+              }
+            </span>
+
+          )}
+
         </button>
 
 
@@ -2309,6 +2608,7 @@ const AdminPanel = () => {
           }
         >
           Users
+
           <span className="admin-tab-count">
             {users.length}
           </span>
@@ -2326,6 +2626,7 @@ const AdminPanel = () => {
           }
         >
           Feedback
+
           <span className="admin-tab-count">
             {feedbackList.length}
           </span>
@@ -2814,9 +3115,6 @@ const AdminPanel = () => {
 
                         <tr key={item.id}>
 
-
-                          {/* NAME */}
-
                           <td>
 
                             <input
@@ -2837,8 +3135,6 @@ const AdminPanel = () => {
 
                           </td>
 
-
-                          {/* CATEGORY */}
 
                           <td>
 
@@ -2861,8 +3157,6 @@ const AdminPanel = () => {
                           </td>
 
 
-                          {/* PRICE */}
-
                           <td>
 
                             <input
@@ -2883,8 +3177,6 @@ const AdminPanel = () => {
 
                           </td>
 
-
-                          {/* STOCK */}
 
                           <td>
 
@@ -2959,8 +3251,6 @@ const AdminPanel = () => {
                           </td>
 
 
-                          {/* LOW STOCK THRESHOLD */}
-
                           <td>
 
                             <input
@@ -2983,8 +3273,6 @@ const AdminPanel = () => {
                           </td>
 
 
-                          {/* IMAGE */}
-
                           <td>
 
                             {item.img ? (
@@ -3001,8 +3289,6 @@ const AdminPanel = () => {
 
                           </td>
 
-
-                          {/* DELETE */}
 
                           <td>
 
@@ -3033,6 +3319,1010 @@ const AdminPanel = () => {
               </div>
 
             )}
+
+          </div>
+
+        )}
+
+
+        {/* ====================================================
+            SMART INVENTORY MANAGEMENT
+        ==================================================== */}
+
+        {activeTab === 'inventory' && (
+
+          <div className="admin-panel-block">
+
+
+            {/* HEADER */}
+
+            <div className="inventory-header">
+
+              <div>
+
+                <p className="section-tag">
+                  SMART INVENTORY MANAGEMENT
+                </p>
+
+                <h2 className="inventory-title">
+                  Inventory <em>Control Center</em>
+                </h2>
+
+                <p className="inventory-description">
+                  Monitor stock levels, identify low-stock
+                  products and restock items before they run out.
+                </p>
+
+              </div>
+
+
+              {(
+                stockSummary.lowStock +
+                stockSummary.outOfStock
+              ) > 0 && (
+
+                <div className="inventory-alert-badge">
+
+                  <span className="inventory-alert-icon">
+                    ⚠
+                  </span>
+
+                  <span>
+                    {
+                      stockSummary.lowStock +
+                      stockSummary.outOfStock
+                    } items need attention
+                  </span>
+
+                </div>
+
+              )}
+
+            </div>
+
+
+            {/* =================================================
+                INVENTORY SUMMARY
+            ================================================= */}
+
+            <div className="inventory-summary-grid">
+
+
+              <div className="inventory-summary-card">
+
+                <div className="inventory-summary-icon">
+                  📦
+                </div>
+
+                <div>
+
+                  <p>
+                    Total Units
+                  </p>
+
+                  <h3>
+                    {stockSummary.totalUnits}
+                  </h3>
+
+                  <span>
+                    All inventory
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="inventory-summary-card inventory-card-danger">
+
+                <div className="inventory-summary-icon">
+                  🚫
+                </div>
+
+                <div>
+
+                  <p>
+                    Out of Stock
+                  </p>
+
+                  <h3>
+                    {stockSummary.outOfStock}
+                  </h3>
+
+                  <span>
+                    Immediate action
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="inventory-summary-card inventory-card-warning">
+
+                <div className="inventory-summary-icon">
+                  ⚠️
+                </div>
+
+                <div>
+
+                  <p>
+                    Low Stock
+                  </p>
+
+                  <h3>
+                    {stockSummary.lowStock}
+                  </h3>
+
+                  <span>
+                    Restock soon
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="inventory-summary-card inventory-card-success">
+
+                <div className="inventory-summary-icon">
+                  ✓
+                </div>
+
+                <div>
+
+                  <p>
+                    Healthy Stock
+                  </p>
+
+                  <h3>
+                    {stockSummary.healthyStock}
+                  </h3>
+
+                  <span>
+                    Good inventory
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="inventory-summary-card">
+
+                <div className="inventory-summary-icon">
+                  ₹
+                </div>
+
+                <div>
+
+                  <p>
+                    Inventory Value
+                  </p>
+
+                  <h3>
+                    ₹
+                    {
+                      stockSummary
+                        .inventoryValue
+                        .toLocaleString('en-IN')
+                    }
+                  </h3>
+
+                  <span>
+                    Current stock value
+                  </span>
+
+                </div>
+
+              </div>
+
+
+              <div className="inventory-summary-card inventory-card-warning">
+
+                <div className="inventory-summary-icon">
+                  🔄
+                </div>
+
+                <div>
+
+                  <p>
+                    Reorder Required
+                  </p>
+
+                  <h3>
+                    {stockSummary.reorderRequired}
+                  </h3>
+
+                  <span>
+                    Below reorder level
+                  </span>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            {/* =================================================
+                LOW STOCK ALERT PANEL
+            ================================================= */}
+
+            {lowStockAlerts.length > 0 && (
+
+              <div className="smart-alert-panel">
+
+                <div className="smart-alert-header">
+
+                  <div>
+
+                    <p className="section-tag">
+                      INVENTORY ALERT
+                    </p>
+
+                    <h3>
+                      Low Stock Alert
+                    </h3>
+
+                  </div>
+
+                  <span className="smart-alert-count">
+                    {lowStockAlerts.length}
+                  </span>
+
+                </div>
+
+
+                <div className="smart-alert-list">
+
+                  {lowStockAlerts
+                    .slice(0, 8)
+                    .map(item => {
+
+                      const stock =
+                        getStock(item);
+
+                      const threshold =
+                        getLowStockAt(item);
+
+                      const isOut =
+                        stock === 0;
+
+
+                      return (
+
+                        <div
+                          key={item.id}
+                          className={`smart-alert-item ${
+                            isOut
+                              ? 'alert-item-out'
+                              : 'alert-item-low'
+                          }`}
+                        >
+
+                          <div className="smart-alert-product">
+
+                            {item.img ? (
+
+                              <img
+                                src={item.img}
+                                alt={item.name}
+                                className="smart-alert-image"
+                              />
+
+                            ) : (
+
+                              <div className="smart-alert-image-placeholder">
+                                ☕
+                              </div>
+
+                            )}
+
+
+                            <div>
+
+                              <strong>
+                                {item.name}
+                              </strong>
+
+                              <span>
+                                {item.category || 'Coffee'}
+                              </span>
+
+                            </div>
+
+                          </div>
+
+
+                          <div className="smart-alert-stock">
+
+                            <span>
+                              Current
+                            </span>
+
+                            <strong>
+                              {stock}
+                            </strong>
+
+                          </div>
+
+
+                          <div className="smart-alert-threshold">
+
+                            <span>
+                              Alert At
+                            </span>
+
+                            <strong>
+                              {threshold}
+                            </strong>
+
+                          </div>
+
+
+                          <div className="smart-alert-status">
+
+                            <span
+                              className={
+                                isOut
+                                  ? 'inventory-badge inventory-badge-out'
+                                  : 'inventory-badge inventory-badge-low'
+                              }
+                            >
+                              {isOut
+                                ? 'OUT OF STOCK'
+                                : 'LOW STOCK'}
+                            </span>
+
+                          </div>
+
+
+                          <div className="smart-alert-actions">
+
+                            <button
+                              type="button"
+                              className="inventory-restock-btn"
+                              onClick={() =>
+                                quickRestock(
+                                  item,
+                                  10
+                                )
+                              }
+                            >
+                              +10
+                            </button>
+
+
+                            <button
+                              type="button"
+                              className="inventory-restock-btn"
+                              onClick={() =>
+                                quickRestock(
+                                  item,
+                                  25
+                                )
+                              }
+                            >
+                              +25
+                            </button>
+
+
+                            <button
+                              type="button"
+                              className="inventory-set-btn"
+                              onClick={() =>
+                                setStockManually(
+                                  item
+                                )
+                              }
+                            >
+                              Set
+                            </button>
+
+                          </div>
+
+                        </div>
+
+                      );
+
+                    })}
+
+                </div>
+
+
+                {lowStockAlerts.length > 8 && (
+
+                  <p className="smart-alert-more">
+                    +
+                    {lowStockAlerts.length - 8}
+                    {' '}
+                    more items require attention.
+                    Use the inventory table below to manage them.
+                  </p>
+
+                )}
+
+              </div>
+
+            )}
+
+
+            {/* =================================================
+                ALL GOOD
+            ================================================= */}
+
+            {menuItems.length > 0 &&
+              lowStockAlerts.length === 0 && (
+
+                <div className="inventory-all-good">
+
+                  <div className="inventory-all-good-icon">
+                    ✓
+                  </div>
+
+                  <div>
+
+                    <h3>
+                      Inventory is healthy
+                    </h3>
+
+                    <p>
+                      All menu items are currently
+                      above their low-stock thresholds.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              )}
+
+
+            {/* =================================================
+                SEARCH + FILTERS
+            ================================================= */}
+
+            <div className="inventory-toolbar">
+
+              <div className="inventory-search">
+
+                <span>
+                  🔎
+                </span>
+
+                <input
+                  type="text"
+                  placeholder="Search product or category..."
+                  value={inventorySearch}
+                  onChange={e =>
+                    setInventorySearch(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+
+              <div className="inventory-filter-group">
+
+                <button
+                  type="button"
+                  className={
+                    inventoryFilter === 'all'
+                      ? 'inventory-filter active'
+                      : 'inventory-filter'
+                  }
+                  onClick={() =>
+                    setInventoryFilter('all')
+                  }
+                >
+                  All
+                  <span>
+                    {menuItems.length}
+                  </span>
+                </button>
+
+
+                <button
+                  type="button"
+                  className={
+                    inventoryFilter === 'out'
+                      ? 'inventory-filter filter-out active'
+                      : 'inventory-filter filter-out'
+                  }
+                  onClick={() =>
+                    setInventoryFilter('out')
+                  }
+                >
+                  Out
+                  <span>
+                    {stockSummary.outOfStock}
+                  </span>
+                </button>
+
+
+                <button
+                  type="button"
+                  className={
+                    inventoryFilter === 'low'
+                      ? 'inventory-filter filter-low active'
+                      : 'inventory-filter filter-low'
+                  }
+                  onClick={() =>
+                    setInventoryFilter('low')
+                  }
+                >
+                  Low
+                  <span>
+                    {stockSummary.lowStock}
+                  </span>
+                </button>
+
+
+                <button
+                  type="button"
+                  className={
+                    inventoryFilter === 'healthy'
+                      ? 'inventory-filter filter-healthy active'
+                      : 'inventory-filter filter-healthy'
+                  }
+                  onClick={() =>
+                    setInventoryFilter('healthy')
+                  }
+                >
+                  Healthy
+                  <span>
+                    {stockSummary.healthyStock}
+                  </span>
+                </button>
+
+              </div>
+
+
+              <select
+                className="inventory-category-select"
+                value={inventoryCategory}
+                onChange={e =>
+                  setInventoryCategory(
+                    e.target.value
+                  )
+                }
+              >
+
+                {inventoryCategories.map(
+                  category => (
+
+                    <option
+                      key={category}
+                      value={category}
+                    >
+                      {category === 'all'
+                        ? 'All Categories'
+                        : category}
+                    </option>
+
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+
+            {/* =================================================
+                INVENTORY TABLE
+            ================================================= */}
+
+            {filteredInventory.length === 0 ? (
+
+              <div className="inventory-empty">
+
+                <div>
+                  📦
+                </div>
+
+                <h3>
+                  No inventory items found
+                </h3>
+
+                <p>
+                  Try changing your search or filters.
+                </p>
+
+              </div>
+
+            ) : (
+
+              <div className="admin-table-wrap inventory-table-wrap">
+
+                <table className="admin-table inventory-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>
+                        Product
+                      </th>
+
+                      <th>
+                        Category
+                      </th>
+
+                      <th>
+                        Price
+                      </th>
+
+                      <th>
+                        Current Stock
+                      </th>
+
+                      <th>
+                        Alert Level
+                      </th>
+
+                      <th>
+                        Reorder To
+                      </th>
+
+                      <th>
+                        Status
+                      </th>
+
+                      <th>
+                        Quick Restock
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+
+                  <tbody>
+
+                    {filteredInventory.map(item => {
+
+                      const stock =
+                        getStock(item);
+
+                      const threshold =
+                        getLowStockAt(item);
+
+                      const reorderLevel =
+                        getReorderLevel(item);
+
+                      const status =
+                        getInventoryStatus(item);
+
+
+                      return (
+
+                        <tr
+                          key={item.id}
+                          className={
+                            status === 'out'
+                              ? 'inventory-row-out'
+                              : status === 'low'
+                                ? 'inventory-row-low'
+                                : ''
+                          }
+                        >
+
+
+                          {/* PRODUCT */}
+
+                          <td>
+
+                            <div className="inventory-product-cell">
+
+                              {item.img ? (
+
+                                <img
+                                  src={item.img}
+                                  alt={item.name}
+                                  className="inventory-product-image"
+                                />
+
+                              ) : (
+
+                                <div className="inventory-product-placeholder">
+                                  ☕
+                                </div>
+
+                              )}
+
+
+                              <div>
+
+                                <strong>
+                                  {item.name}
+                                </strong>
+
+                                <span>
+                                  ₹
+                                  {Number(
+                                    item.price || 0
+                                  ).toLocaleString(
+                                    'en-IN'
+                                  )}
+                                </span>
+
+                              </div>
+
+                            </div>
+
+                          </td>
+
+
+                          {/* CATEGORY */}
+
+                          <td>
+                            {item.category || '—'}
+                          </td>
+
+
+                          {/* PRICE */}
+
+                          <td>
+                            ₹
+                            {Number(
+                              item.price || 0
+                            ).toLocaleString(
+                              'en-IN'
+                            )}
+                          </td>
+
+
+                          {/* STOCK */}
+
+                          <td>
+
+                            <div className="inventory-stock-control">
+
+                              <button
+                                type="button"
+                                className="inventory-stock-btn"
+                                onClick={() =>
+                                  changeStock(
+                                    item,
+                                    -1
+                                  )
+                                }
+                                disabled={
+                                  stock <= 0
+                                }
+                              >
+                                −
+                              </button>
+
+
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="inventory-stock-input"
+                                value={stock}
+                                onChange={e => {
+
+                                  const value =
+                                    Number(
+                                      e.target.value
+                                    );
+
+                                  if (
+                                    Number.isInteger(
+                                      value
+                                    ) &&
+                                    value >= 0
+                                  ) {
+
+                                    updateMenuItem(
+                                      item.id,
+                                      'stock',
+                                      value
+                                    );
+
+                                  }
+
+                                }}
+                              />
+
+
+                              <button
+                                type="button"
+                                className="inventory-stock-btn"
+                                onClick={() =>
+                                  changeStock(
+                                    item,
+                                    1
+                                  )
+                                }
+                              >
+                                +
+                              </button>
+
+                            </div>
+
+                          </td>
+
+
+                          {/* ALERT LEVEL */}
+
+                          <td>
+
+                            <div className="inventory-threshold-cell">
+
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="inventory-threshold-input"
+                                defaultValue={
+                                  threshold
+                                }
+                                key={`${item.id}-${threshold}`}
+                                onBlur={e =>
+                                  handleLowStockBlur(
+                                    item,
+                                    e
+                                  )
+                                }
+                              />
+
+                              <span>
+                                units
+                              </span>
+
+                            </div>
+
+                          </td>
+
+
+                          {/* REORDER */}
+
+                          <td>
+
+                            <span className="inventory-reorder-number">
+                              {reorderLevel}
+                            </span>
+
+                          </td>
+
+
+                          {/* STATUS */}
+
+                          <td>
+
+                            <span
+                              className={`inventory-badge ${
+                                getInventoryStatusClass(
+                                  item
+                                )
+                              }`}
+                            >
+
+                              {status === 'out' &&
+                                '🚫 '}
+
+                              {status === 'low' &&
+                                '⚠ '}
+
+                              {status === 'healthy' &&
+                                '✓ '}
+
+                              {
+                                getInventoryStatusLabel(
+                                  item
+                                )
+                              }
+
+                            </span>
+
+                          </td>
+
+
+                          {/* QUICK RESTOCK */}
+
+                          <td>
+
+                            <div className="inventory-quick-actions">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  quickRestock(
+                                    item,
+                                    10
+                                  )
+                                }
+                              >
+                                +10
+                              </button>
+
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  quickRestock(
+                                    item,
+                                    25
+                                  )
+                                }
+                              >
+                                +25
+                              </button>
+
+
+                              <button
+                                type="button"
+                                className="inventory-set-action"
+                                onClick={() =>
+                                  setStockManually(
+                                    item
+                                  )
+                                }
+                              >
+                                Set
+                              </button>
+
+                            </div>
+
+                          </td>
+
+                        </tr>
+
+                      );
+
+                    })}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+
+            {/* =================================================
+                INVENTORY LOGIC INFO
+            ================================================= */}
+
+            <div className="inventory-info-panel">
+
+              <div className="inventory-info-icon">
+                💡
+              </div>
+
+              <div>
+
+                <h4>
+                  How Smart Inventory works
+                </h4>
+
+                <p>
+                  <strong>Out of Stock:</strong>{' '}
+                  stock is 0.
+                  {' '}
+                  <strong>Low Stock:</strong>{' '}
+                  stock is greater than 0 but
+                  at or below the alert threshold.
+                  {' '}
+                  <strong>Healthy:</strong>{' '}
+                  stock is above the alert threshold.
+                </p>
+
+                <p>
+                  The reorder suggestion is automatically
+                  calculated as at least 3× the low-stock
+                  threshold, with a minimum target of 10 units.
+                </p>
+
+              </div>
+
+            </div>
 
           </div>
 
