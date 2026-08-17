@@ -8,7 +8,7 @@ import './Chatbot.css';
 
 
 // =====================================================
-// API
+// VERCEL API
 // =====================================================
 
 const CHATBOT_URL = '/api/chat';
@@ -18,16 +18,14 @@ const FEEDBACK_STORAGE_KEY =
 
 
 // =====================================================
-// QUICK QUESTIONS
+// QUICK REPLIES
 // =====================================================
 
 const QUICK_REPLIES = [
   'Show me the menu & prices',
-  'What time do you close?',
+  'What time do you close today?',
   "What's your best seller?",
   'Do you deliver?',
-  'What is the delivery time?',
-  'Recommend a strong coffee',
 ];
 
 
@@ -36,20 +34,21 @@ const QUICK_REPLIES = [
 // =====================================================
 
 function saveFeedback(entry) {
+
   try {
 
-    const existing = JSON.parse(
-      localStorage.getItem(
-        FEEDBACK_STORAGE_KEY
-      ) || '[]'
-    );
-
+    const existing =
+      JSON.parse(
+        localStorage.getItem(
+          FEEDBACK_STORAGE_KEY
+        ) || '[]'
+      );
 
     existing.push({
       ...entry,
-      savedAt: new Date().toISOString(),
+      savedAt:
+        new Date().toISOString(),
     });
-
 
     localStorage.setItem(
       FEEDBACK_STORAGE_KEY,
@@ -62,66 +61,72 @@ function saveFeedback(entry) {
       'Could not save feedback:',
       error
     );
+
   }
 }
 
 
 // =====================================================
-// TIME
-// =====================================================
-
-function getTime() {
-
-  return new Date().toLocaleTimeString(
-    [],
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-    }
-  );
-}
-
-
-// =====================================================
-// CHATBOT
+// COMPONENT
 // =====================================================
 
 const Chatbot = () => {
 
+  // ===================================================
+  // STATE
+  // ===================================================
+
   const [isOpen, setIsOpen] =
     useState(false);
 
-
   const [hasNewMessage, setHasNewMessage] =
     useState(true);
-
 
   const [messages, setMessages] =
     useState([
       {
         role: 'bot',
+
         text:
-          "Hey there! 👋 I'm Bru, your Brew Haven barista. Ask me anything about our menu, prices, hours, delivery, or tell me what kind of coffee you're in the mood for.",
+          "Hey there! 👋 I'm Bru, your Brew Haven AI assistant. Ask me about the menu, prices, hours, recommendations, or even general questions.",
+
         time: getTime(),
-        feedback: null,
       },
     ]);
 
-
   const [input, setInput] =
     useState('');
-
 
   const [isLoading, setIsLoading] =
     useState(false);
 
 
+  // ===================================================
+  // REFS
+  // ===================================================
+
   const messagesEndRef =
     useRef(null);
 
-
   const inputRef =
     useRef(null);
+
+
+  // ===================================================
+  // TIME HELPER
+  // ===================================================
+
+  function getTime() {
+
+    return new Date().toLocaleTimeString(
+      [],
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+      }
+    );
+
+  }
 
 
   // ===================================================
@@ -142,30 +147,25 @@ const Chatbot = () => {
 
 
   // ===================================================
-  // OPEN FOCUS
+  // FOCUS INPUT
   // ===================================================
 
   useEffect(() => {
 
-    if (!isOpen) {
-      return;
+    if (isOpen) {
+
+      setHasNewMessage(false);
+
+      const timer =
+        setTimeout(() => {
+
+          inputRef.current?.focus();
+
+        }, 250);
+
+      return () =>
+        clearTimeout(timer);
     }
-
-
-    setHasNewMessage(false);
-
-
-    const timeout =
-      setTimeout(() => {
-
-        inputRef.current?.focus();
-
-      }, 250);
-
-
-    return () => {
-      clearTimeout(timeout);
-    };
 
   }, [isOpen]);
 
@@ -185,6 +185,7 @@ const Chatbot = () => {
       ).trim();
 
 
+    // Do nothing for empty message
     if (
       !trimmed ||
       isLoading
@@ -194,37 +195,42 @@ const Chatbot = () => {
 
 
     // =================================================
-    // SAVE USER MESSAGE
+    // ADD USER MESSAGE
     // =================================================
-
-    const userMessage = {
-      role: 'user',
-      text: trimmed,
-      time: getTime(),
-    };
-
 
     setMessages(
       (previousMessages) => [
+
         ...previousMessages,
-        userMessage,
+
+        {
+          role: 'user',
+          text: trimmed,
+          time: getTime(),
+        },
+
       ]
     );
 
 
+    // Clear input
     setInput('');
+
+    // Show loading
     setIsLoading(true);
 
 
     try {
 
-      // ===============================================
-      // HISTORY
-      // ===============================================
+      // =================================================
+      // BUILD HISTORY
+      //
+      // Send last 12 messages to backend.
+      // =================================================
 
       const recentHistory =
         messages
-          .slice(-8)
+          .slice(-12)
           .map(
             ({
               role,
@@ -236,9 +242,9 @@ const Chatbot = () => {
           );
 
 
-      // ===============================================
+      // =================================================
       // API REQUEST
-      // ===============================================
+      // =================================================
 
       const response =
         await fetch(
@@ -252,212 +258,122 @@ const Chatbot = () => {
             },
 
             body: JSON.stringify({
+
               message: trimmed,
-              history: recentHistory,
+
+              history:
+                recentHistory,
+
             }),
           }
         );
 
 
-      // ===============================================
+      // =================================================
       // READ RESPONSE
-      // ===============================================
+      // =================================================
 
-      let data = null;
-
+      let data;
 
       try {
 
         data =
           await response.json();
 
-      } catch {
+      } catch (error) {
 
         throw new Error(
-          'The chatbot server returned an invalid response.'
+          'Invalid response received from chatbot server.'
         );
+
       }
 
 
-      // ===============================================
+      // =================================================
       // SERVER ERROR
-      // ===============================================
+      // =================================================
 
       if (!response.ok) {
 
-        const serverError =
+        throw new Error(
           data?.error ||
-          'The chatbot server returned an error.';
+          'Chatbot server returned an error.'
+        );
 
-
-        const error =
-          new Error(serverError);
-
-
-        error.status =
-          response.status;
-
-
-        error.code =
-          data?.code;
-
-
-        throw error;
       }
 
 
-      // ===============================================
-      // RESPONSE
-      // ===============================================
+      // =================================================
+      // AI RESPONSE
+      // =================================================
 
       const reply =
-        typeof data?.reply === 'string'
-          ? data.reply.trim()
-          : 'Sorry, I could not generate a response.';
+        data?.reply ||
+        "Sorry, I couldn't generate a response.";
 
 
-      // ===============================================
-      // BOT MESSAGE
-      // ===============================================
+      // =================================================
+      // ADD BOT RESPONSE
+      // =================================================
 
       setMessages(
         (previousMessages) => [
+
           ...previousMessages,
+
           {
             role: 'bot',
+
             text: reply,
+
             time: getTime(),
-            userQuestion: trimmed,
+
+            userQuestion:
+              trimmed,
+
             feedback: null,
-            source: data?.source,
-            model: data?.model,
+
+            source:
+              data?.source || 'groq',
           },
+
         ]
       );
 
 
+      // =================================================
+      // NEW MESSAGE DOT
+      // =================================================
+
       if (!isOpen) {
+
         setHasNewMessage(true);
+
       }
 
 
     } catch (error) {
 
       console.error(
-        '[BREW HAVEN CHATBOT]',
+        'Chatbot error:',
         error
       );
 
 
-      // =============================================
-      // DEFAULT
-      // =============================================
+      // =================================================
+      // USER FRIENDLY ERROR
+      // =================================================
 
       let errorMessage =
-        'I’m having trouble connecting right now. ' +
-        'Please try again in a moment.';
-
-
-      const status =
-        error?.status;
-
-
-      const code =
-        error?.code;
+        "I couldn't reach the AI assistant right now. Please try again.";
 
 
       const errorText =
-        error?.message?.toLowerCase() ||
-        '';
+        error?.message
+          ?.toLowerCase() || '';
 
-
-      // =============================================
-      // API KEY
-      // =============================================
 
       if (
-        code === 'MISSING_API_KEY' ||
-        errorText.includes(
-          'api key is not configured'
-        )
-      ) {
-
-        errorMessage =
-          'The chatbot API key is not configured correctly on Vercel.';
-
-      }
-
-
-      // =============================================
-      // AUTH
-      // =============================================
-
-      else if (
-        status === 401 ||
-        errorText.includes(
-          'authentication'
-        )
-      ) {
-
-        errorMessage =
-          'The AI service authentication is invalid. Please check the Groq API key.';
-
-      }
-
-
-      // =============================================
-      // FORBIDDEN
-      // =============================================
-
-      else if (
-        status === 403 ||
-        errorText.includes(
-          'access was denied'
-        )
-      ) {
-
-        errorMessage =
-          'The AI service access was denied. Please check the API key permissions.';
-
-      }
-
-
-      // =============================================
-      // RATE LIMIT
-      // =============================================
-
-      else if (
-        status === 429 ||
-        errorText.includes(
-          'temporarily busy'
-        )
-      ) {
-
-        errorMessage =
-          'The AI service is busy right now. Please try again in a few seconds.';
-
-      }
-
-
-      // =============================================
-      // BAD REQUEST
-      // =============================================
-
-      else if (
-        status === 400
-      ) {
-
-        errorMessage =
-          'I couldn’t process that request. Try asking it in a slightly different way.';
-
-      }
-
-
-      // =============================================
-      // NETWORK
-      // =============================================
-
-      else if (
         errorText.includes(
           'failed to fetch'
         ) ||
@@ -469,45 +385,68 @@ const Chatbot = () => {
         errorMessage =
           'Unable to connect to the chatbot server. Please check your internet connection and try again.';
 
-      }
-
-
-      // =============================================
-      // FALLBACK
-      // =============================================
-
-      else if (
+      } else if (
         errorText.includes(
-          'temporarily unavailable'
+          'api key'
+        ) ||
+        errorText.includes(
+          'not configured'
         )
       ) {
 
         errorMessage =
-          'The AI service is temporarily busy. Please try again in a moment.';
+          'The chatbot API is not configured correctly on Vercel.';
+
+      } else if (
+        errorText.includes(
+          'message string'
+        )
+      ) {
+
+        errorMessage =
+          'Please enter a valid message.';
+
+      } else if (
+        errorText.includes(
+          'message too long'
+        )
+      ) {
+
+        errorMessage =
+          'Your message is too long. Please keep it under 500 characters.';
 
       }
 
 
-      // =============================================
-      // SHOW ERROR
-      // =============================================
+      // =================================================
+      // SHOW ERROR MESSAGE
+      // =================================================
 
       setMessages(
         (previousMessages) => [
+
           ...previousMessages,
+
           {
             role: 'bot',
+
             text: errorMessage,
+
             time: getTime(),
+
             isError: true,
+
           },
+
         ]
       );
 
     } finally {
 
       setIsLoading(false);
+
     }
+
   };
 
 
@@ -522,13 +461,17 @@ const Chatbot = () => {
 
     setMessages(
       (previousMessages) =>
+
         previousMessages.map(
           (message, i) =>
+
             i === index
+
               ? {
                   ...message,
                   feedback: value,
                 }
+
               : message
         )
     );
@@ -539,16 +482,19 @@ const Chatbot = () => {
 
 
     saveFeedback({
+
       question:
         target?.userQuestion ||
         null,
 
       answer:
-        target?.text ||
-        null,
+        target?.text,
 
-      rating: value,
+      rating:
+        value,
+
     });
+
   };
 
 
@@ -568,12 +514,14 @@ const Chatbot = () => {
       event.preventDefault();
 
       sendMessage();
+
     }
+
   };
 
 
   // ===================================================
-  // TOGGLE
+  // TOGGLE CHATBOT
   // ===================================================
 
   const toggleChatbot = () => {
@@ -582,6 +530,7 @@ const Chatbot = () => {
       (previousState) =>
         !previousState
     );
+
   };
 
 
@@ -591,17 +540,16 @@ const Chatbot = () => {
 
   return (
     <>
+
       {/* =================================================
-          FLOATING BUTTON
+          FLOATING CHAT BUTTON
       ================================================= */}
 
       <button
         type="button"
-        className={
-          `chatbot-toggle ${
-            isOpen ? 'open' : ''
-          }`
-        }
+        className={`chatbot-toggle ${
+          isOpen ? 'open' : ''
+        }`}
         onClick={toggleChatbot}
         aria-label={
           isOpen
@@ -675,14 +623,12 @@ const Chatbot = () => {
             </svg>
 
           </span>
-        )}
 
+        )}
 
         {!isOpen &&
           hasNewMessage && (
-            <span
-              className="chatbot-toggle-dot"
-            />
+            <span className="chatbot-toggle-dot" />
           )}
 
       </button>
@@ -693,13 +639,11 @@ const Chatbot = () => {
       ================================================= */}
 
       <div
-        className={
-          `chatbot-window ${
-            isOpen ? 'open' : ''
-          }`
-        }
+        className={`chatbot-window ${
+          isOpen ? 'open' : ''
+        }`}
         role="dialog"
-        aria-label="Brew Haven chat"
+        aria-label="Brew Haven AI chat"
       >
 
         {/* =================================================
@@ -751,11 +695,9 @@ const Chatbot = () => {
 
             <p className="chatbot-header-sub">
 
-              <span
-                className="chatbot-status-dot"
-              />
+              <span className="chatbot-status-dot" />
 
-              Bru is online
+              Bru AI is online
 
             </p>
 
@@ -797,27 +739,26 @@ const Chatbot = () => {
         <div className="chatbot-messages">
 
           {messages.map(
-            (message, index) => (
+            (
+              message,
+              index
+            ) => (
 
               <div
                 key={`${message.role}-${index}`}
-                className={
-                  `chatbot-row ${
-                    message.role
-                  }`
-                }
+                className={`chatbot-row ${
+                  message.role
+                }`}
               >
 
                 <div
-                  className={
-                    `chatbot-bubble ${
-                      message.role
-                    } ${
-                      message.isError
-                        ? 'error'
-                        : ''
-                    }`
-                  }
+                  className={`chatbot-bubble ${
+                    message.role
+                  } ${
+                    message.isError
+                      ? 'error'
+                      : ''
+                  }`}
                 >
 
                   {message.text}
@@ -825,28 +766,24 @@ const Chatbot = () => {
                 </div>
 
 
-                {/* ========================================
+                {/* =================================================
                     FEEDBACK
-                ======================================== */}
+                ================================================= */}
 
                 {message.role === 'bot' &&
                   !message.isError &&
                   index !== 0 && (
 
-                    <div
-                      className="chatbot-feedback"
-                    >
+                    <div className="chatbot-feedback">
 
                       <button
                         type="button"
-                        className={
-                          `chatbot-feedback-btn ${
-                            message.feedback ===
-                            'up'
-                              ? 'active'
-                              : ''
-                          }`
-                        }
+                        className={`chatbot-feedback-btn ${
+                          message.feedback ===
+                          'up'
+                            ? 'active'
+                            : ''
+                        }`}
                         onClick={() =>
                           handleFeedback(
                             index,
@@ -861,14 +798,12 @@ const Chatbot = () => {
 
                       <button
                         type="button"
-                        className={
-                          `chatbot-feedback-btn ${
-                            message.feedback ===
-                            'down'
-                              ? 'active'
-                              : ''
-                          }`
-                        }
+                        className={`chatbot-feedback-btn ${
+                          message.feedback ===
+                          'down'
+                            ? 'active'
+                            : ''
+                        }`}
                         onClick={() =>
                           handleFeedback(
                             index,
@@ -883,26 +818,24 @@ const Chatbot = () => {
 
                       {message.feedback && (
 
-                        <span
-                          className="chatbot-feedback-thanks"
-                        >
+                        <span className="chatbot-feedback-thanks">
                           Thanks for the feedback!
                         </span>
 
                       )}
 
                     </div>
+
                   )}
 
 
-                {/* ========================================
+                {/* =================================================
                     TIME
-                ======================================== */}
+                ================================================= */}
 
                 <span className="chatbot-time">
 
                   {message.time}
-
 
                   {message.role === 'user' && (
 
@@ -938,6 +871,7 @@ const Chatbot = () => {
                 </span>
 
               </div>
+
             )
           )}
 
@@ -949,9 +883,7 @@ const Chatbot = () => {
           {messages.length === 1 &&
             !isLoading && (
 
-              <div
-                className="chatbot-quick-replies"
-              >
+              <div className="chatbot-quick-replies">
 
                 {QUICK_REPLIES.map(
                   (quickReply) => (
@@ -983,17 +915,13 @@ const Chatbot = () => {
 
           {isLoading && (
 
-            <div
-              className="chatbot-row bot"
-            >
+            <div className="chatbot-row bot">
 
-              <div
-                className="chatbot-bubble bot chatbot-typing"
-              >
+              <div className="chatbot-bubble bot chatbot-typing">
 
-                <span />
-                <span />
-                <span />
+                <span></span>
+                <span></span>
+                <span></span>
 
               </div>
 
@@ -1025,7 +953,7 @@ const Chatbot = () => {
               )
             }
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything..."
+            placeholder="Ask anything..."
             className="chatbot-input"
             disabled={isLoading}
             maxLength={500}
@@ -1066,13 +994,16 @@ const Chatbot = () => {
         </div>
 
 
-        <p
-          className="chatbot-footer-note"
-        >
-          Brew Haven · Bru usually replies in a few seconds
+        {/* =================================================
+            FOOTER
+        ================================================= */}
+
+        <p className="chatbot-footer-note">
+          Brew Haven · Bru AI · usually replies in a few seconds
         </p>
 
       </div>
+
     </>
   );
 };
