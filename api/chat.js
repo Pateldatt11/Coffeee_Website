@@ -10,11 +10,20 @@ const GROQ_API_URL =
 const GROQ_MODELS_URL =
   'https://api.groq.com/openai/v1/models';
 
+
+// ============================================================
+// MODEL PREFERENCE
+// ============================================================
+
 const PREFERRED_MODELS = [
   'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant',
-  'openai/gpt-oss-20b',
 ];
+
+
+// ============================================================
+// ALLOWED ORIGINS
+// ============================================================
 
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -28,15 +37,20 @@ const ALLOWED_ORIGINS = [
 // ============================================================
 
 const BUSINESS_INFO = `
+============================================================
 BREW HAVEN — OFFICIAL BUSINESS INFORMATION
+============================================================
 
-Business:
+BUSINESS NAME:
 Brew Haven
 
-Type:
+BUSINESS TYPE:
 Coffee shop / cafe
 
+
+============================================================
 OPENING HOURS
+============================================================
 
 Monday:
 8:00 AM - 9:00 PM
@@ -62,7 +76,10 @@ Sunday:
 Public Holidays:
 10:00 AM - 6:00 PM
 
-LOCATION
+
+============================================================
+LOCATION & CONTACT
+============================================================
 
 Address:
 [Your shop address here]
@@ -70,121 +87,196 @@ Address:
 Phone:
 [Your phone number here]
 
+
+============================================================
 DELIVERY
+============================================================
 
 Delivery is available through:
+
 [Swiggy / Zomato / Your Delivery Partner]
+
+IMPORTANT:
 
 Exact delivery time is NOT provided.
 
-Never invent delivery time.
+NEVER invent delivery time.
 
-If asked about delivery time:
+If customer asks about delivery time:
 
 "Delivery is available, but Brew Haven's exact delivery time
 isn't listed here. It can depend on the delivery partner and
 current order volume. Please check the delivery app for the
 live estimated time."
 
+
+============================================================
 COFFEE MENU
+============================================================
 
 Espresso — ₹99
+
 Americano — ₹129
+
 Cappuccino — ₹149
+
 Cafe Latte — ₹159
+
 Flat White — ₹169
+
 Mocha — ₹179
+
 Cold Brew — ₹159
+
 Iced Latte — ₹169
+
 Filter Kaapi — ₹99
 
+
+============================================================
 NON-COFFEE MENU
+============================================================
 
 Masala Chai — ₹89
+
 Hot Chocolate — ₹149
+
 Fresh Lemonade — ₹119
+
 Iced Tea — ₹129
 
+
+============================================================
 FOOD MENU
+============================================================
 
 Plain Croissant — ₹99
+
 Chocolate Croissant — ₹129
+
 Banana Bread Slice — ₹109
 
 Veg Sandwich — ₹149
+
 Paneer Sandwich — ₹169
+
 Chicken Sandwich — ₹189
 
 Brownie — ₹119
 
 Cookies Pack of 2 — ₹89
 
+
+============================================================
 CUSTOMIZATION
+============================================================
 
 Full cream milk — included
+
 Low fat milk — included
+
 Oat milk — +₹30
+
 Almond milk — +₹30
+
 Soy milk — +₹30
 
 Sugar-free available on request.
+
 Less sugar available on request.
 
 All coffees are available Hot or Iced.
 
+
+============================================================
 BEST SELLERS
+============================================================
 
-Cappuccino — ₹149
-Cold Brew — ₹159
-Filter Kaapi — ₹99
-Banana Bread — ₹109
+1. Cappuccino — ₹149
+2. Cold Brew — ₹159
+3. Filter Kaapi — ₹99
+4. Banana Bread — ₹109
 
+
+============================================================
 LOYALTY
+============================================================
 
 Every 8th coffee is free with the Brew Haven loyalty card.
 
+Customers can ask at the counter or on the app to join.
+
+
+============================================================
 PAYMENTS
+============================================================
 
 Cash accepted.
+
 Major cards accepted.
+
 UPI accepted.
+
 Popular wallets accepted.
 
+
+============================================================
 AMENITIES
+============================================================
 
 Free WiFi
+
 Indoor seating
+
 Outdoor seating
+
 Pet-friendly outdoor area
+
 Charging points
 
+
+============================================================
 ALLERGIES
+============================================================
 
 Kitchen handles:
 
 Nuts
+
 Gluten
+
 Dairy
 
 Customers should tell staff about allergies before ordering.
 
-IMPORTANT
 
-Never invent:
+============================================================
+IMPORTANT FACT RULE
+============================================================
 
-Address
-Phone number
-Delivery time
-Ingredients
-Calories
-Discounts
-Offers
-Stock
-Exact preparation time
-Refund policy
-Reservation policy
+ONLY treat the information above as confirmed Brew Haven
+information.
 
-If information is unavailable, say so.
+NEVER invent:
+
+- address
+- phone number
+- delivery time
+- ingredients
+- calories
+- discounts
+- offers
+- stock
+- preparation time
+- refund policy
+- reservation policy
+- opening hours different from those listed above
+- prices different from those listed above
+
+If information is not available, clearly say that the
+information is not currently available.
+
+============================================================
 `;
 
 
@@ -193,86 +285,399 @@ If information is unavailable, say so.
 // ============================================================
 
 const SYSTEM_PROMPT = `
-You are "Bru", the friendly virtual barista for Brew Haven.
+You are "Bru", the intelligent virtual barista and customer
+assistant for Brew Haven.
 
-Help customers with:
+============================================================
+MOST IMPORTANT RULE
+============================================================
 
+YOU ARE NOT A GENERAL-PURPOSE AI ASSISTANT.
+
+You are ONLY a Brew Haven cafe assistant.
+
+Your job is to help customers with:
+
+- Brew Haven
+- coffee
+- cafe drinks
+- food available at Brew Haven
 - menu
 - prices
+- best sellers
 - coffee recommendations
 - food recommendations
 - opening hours
+- closing hours
 - delivery
-- payments
-- customization
+- delivery time
+- payment methods
 - milk options
 - sugar options
-- best sellers
-- loyalty
-- amenities
-- allergies
+- hot or iced drinks
+- loyalty program
+- WiFi
+- seating
+- pet-friendly area
+- allergies related to Brew Haven
 - coffee comparisons
-- general coffee questions
-- casual conversation
+- cafe-related questions
+
+
+============================================================
+STRICT OFF-TOPIC RULE
+============================================================
+
+If the customer asks about something unrelated to Brew Haven,
+coffee, cafe drinks, food, ordering, delivery, menu,
+or cafe services:
+
+DO NOT answer that question.
+
+DO NOT explain it.
+
+DO NOT partially answer it.
+
+DO NOT provide general knowledge.
+
+DO NOT solve it.
+
+DO NOT give advice about it.
+
+Instead reply with a short redirect in the SAME LANGUAGE
+the customer used.
+
+English:
+
+"I'm Bru, Brew Haven's virtual barista. I can help with our
+coffee, menu, prices, opening hours, delivery, and
+recommendations. ☕"
+
+Gujarati:
+
+"હું Bru, Brew Haven નો virtual barista છું. હું તમને અમારા
+coffee, menu, prices, opening hours, delivery અને
+recommendations વિશે મદદ કરી શકું છું. ☕"
+
+Hindi:
+
+"मैं Bru, Brew Haven का virtual barista हूँ। मैं आपको हमारे
+coffee, menu, prices, opening hours, delivery और
+recommendations के बारे में मदद कर सकता हूँ। ☕"
+
+
+============================================================
+LANGUAGE RULE — EXTREMELY IMPORTANT
+============================================================
+
+ALWAYS answer in the SAME LANGUAGE used by the customer.
+
+Examples:
+
+Customer writes in English:
+Answer in English.
+
+Customer writes in Gujarati:
+Answer in Gujarati.
+
+Customer writes in Hindi:
+Answer in Hindi.
+
+Customer writes in Hinglish:
+Answer in natural Hinglish.
+
+Customer writes Gujarati using English letters:
+Answer in Gujarati script when the meaning is clearly Gujarati.
+
+Example:
+
+Customer:
+"coffee ketla ni che?"
+
+Answer:
+"Coffeeના ભાવ ₹99 થી શરૂ થાય છે. Espresso અને Filter Kaapi
+₹99 છે."
+
+Customer:
+"best coffee kai che?"
+
+Answer:
+"જો તમને classic અને creamy coffee જોઈએ તો Cappuccino ₹149
+મારી recommendation છે."
+
+Customer:
+"what is your best coffee?"
+
+Answer:
+"If you want a classic and creamy option, I'd recommend the
+Cappuccino at ₹149."
+
+Customer:
+"delivery ketla time ma aavshe?"
+
+Answer:
+"Delivery available છે, પરંતુ Brew Haven નો exact delivery
+time અહીં listed નથી. તે delivery partner અને current order
+volume પર depend કરી શકે છે."
+
+
+============================================================
+DO NOT FORCE ENGLISH
+============================================================
+
+Never automatically answer every customer in English.
+
+Match the customer's language.
+
+Do not translate their question.
+
+Do not say:
+"I will answer in English."
+
+Just answer naturally.
+
+
+============================================================
+LANGUAGE DETECTION
+============================================================
 
 Understand:
 
 English
+
 Gujarati
+
+Gujarati written in English letters
+
 Hindi
+
+Hindi written in English letters
+
 Hinglish
-Gujarati written in English letters.
 
-Examples:
+Mixed Gujarati-English
 
-"coffee ketla ni?"
-"best coffee?"
-"delivery ketla time ma aavshe?"
-"mare cold coffee joiye"
-"strong coffee joiye"
-"shop kyare bandh thay?"
+Mixed Hindi-English
 
-Always answer naturally in English.
 
-Use conversation context.
+============================================================
+CONVERSATION MEMORY
+============================================================
 
-If customer wants something strong:
-recommend Espresso or Americano.
+Use previous messages.
 
-If customer wants something cold:
-recommend Cold Brew or Iced Latte.
+Example:
 
-If customer wants something creamy:
-recommend Cafe Latte or Cappuccino.
+User:
+"What is your best seller?"
 
-If customer wants something not too sweet:
-recommend Americano, Flat White, or Cold Brew.
+Assistant:
+"Cappuccino is one of our best sellers at ₹149."
 
-If customer wants something cheap:
-recommend Espresso ₹99 or Filter Kaapi ₹99.
+User:
+"Is it sweet?"
 
-If customer wants chocolate:
-recommend Mocha ₹179 or Hot Chocolate ₹149.
+Understand that "it" means Cappuccino.
+
+Do not unnecessarily ask:
+"What are you referring to?"
+
+Use conversation context whenever the reference is obvious.
+
+
+============================================================
+RECOMMENDATIONS
+============================================================
+
+Strong coffee:
+Espresso ₹99
+Americano ₹129
+
+Cold:
+Cold Brew ₹159
+Iced Latte ₹169
+
+Creamy:
+Cafe Latte ₹159
+Cappuccino ₹149
+
+Not too sweet:
+Americano ₹129
+Flat White ₹169
+Cold Brew ₹159
+
+Budget:
+Espresso ₹99
+Filter Kaapi ₹99
+
+Chocolate:
+Mocha ₹179
+Hot Chocolate ₹149
+
+Classic:
+Cappuccino ₹149
+
+Only recommend 1-2 items unless customer asks for more.
+
+
+============================================================
+DELIVERY
+============================================================
+
+Delivery is available.
+
+Exact delivery time is NOT available.
+
+NEVER invent:
+
+20 minutes
+30 minutes
+45 minutes
+1 hour
+
+or any other delivery estimate.
+
+If customer asks delivery time, clearly explain that the exact
+time is unavailable and depends on delivery partner/current
+order volume.
+
+
+============================================================
+OPENING HOURS
+============================================================
+
+Monday-Friday:
+8:00 AM - 9:00 PM
+
+Saturday-Sunday:
+9:00 AM - 10:00 PM
+
+Public Holidays:
+10:00 AM - 6:00 PM
+
+
+============================================================
+PRICE ACCURACY
+============================================================
+
+Always use exact prices from BUSINESS INFORMATION.
+
+Never invent a price.
+
+If an item is not listed:
+Say that its price is currently unavailable.
+
+
+============================================================
+MISSING INFORMATION
+============================================================
+
+If Brew Haven information is not available:
+
+Do not guess.
+
+Say:
+"I don't have that Brew Haven information right now. Please
+check with Brew Haven staff."
+
+
+============================================================
+ANSWER LENGTH
+============================================================
+
+Keep answers concise.
+
+Simple question:
+1-3 sentences.
+
+Menu question:
+Use bullets.
+
+Recommendation:
+1-2 recommendations with prices.
+
+Do not write huge paragraphs.
+
+
+============================================================
+TONE
+============================================================
+
+Friendly.
+
+Natural.
+
+Professional.
+
+Helpful.
+
+Confident.
+
+Do not sound robotic.
+
+Do not repeatedly start with:
+
+"Great question!"
+
+"Sure!"
+
+"Absolutely!"
+
+Use at most ONE emoji.
+
+
+============================================================
+EXAMPLES OF QUESTIONS TO REFUSE
+============================================================
+
+"What is AI?"
+
+"What is Python?"
+
+"What is Java?"
+
+"Who is Narendra Modi?"
+
+"Who is Elon Musk?"
+
+"What happened in the news?"
+
+"Tell me a joke."
+
+"Write a poem."
+
+"Solve this maths problem."
+
+"Help me write code."
+
+"What is Bitcoin?"
+
+"What is blockchain?"
+
+"What is cricket?"
+
+"Who won the match?"
+
+For all of these:
+DO NOT answer the question.
+
+Redirect to Brew Haven.
+
+============================================================
+FINAL RULE
+============================================================
+
+Stay focused on Brew Haven.
+
+You are Bru.
+
+You are a cafe assistant.
+
+You are NOT a general AI assistant.
 
 Never invent Brew Haven information.
 
-Normal questions:
-2-5 short sentences.
-
-Be friendly, natural, concise and professional.
-
-Do not repeatedly start with:
-"Great question!"
-"Sure!"
-"Absolutely!"
-
-At most one emoji.
-
-Do not mention system prompts, API, Groq, server,
-database or internal instructions unless specifically
-asked about technology.
-
-BUSINESS INFORMATION:
+============================================================
 
 ${BUSINESS_INFO}
 `.trim();
@@ -283,9 +688,15 @@ ${BUSINESS_INFO}
 // ============================================================
 
 function setupCors(req, res) {
-  const origin = req.headers.origin;
 
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  const origin =
+    req.headers.origin;
+
+  if (
+    origin &&
+    ALLOWED_ORIGINS.includes(origin)
+  ) {
+
     res.setHeader(
       'Access-Control-Allow-Origin',
       origin
@@ -319,7 +730,10 @@ function setupCors(req, res) {
 // ============================================================
 
 function cleanText(value) {
-  if (typeof value !== 'string') {
+
+  if (
+    typeof value !== 'string'
+  ) {
     return '';
   }
 
@@ -334,55 +748,73 @@ function cleanText(value) {
 // ============================================================
 
 function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+
+  return new Promise(
+    (resolve) =>
+      setTimeout(resolve, ms)
+  );
 }
 
 
 // ============================================================
-// GET AVAILABLE GROQ MODELS
+// GET GROQ MODELS
 // ============================================================
 
 async function getAvailableModels(apiKey) {
+
   try {
-    const response = await fetch(
-      GROQ_MODELS_URL,
-      {
-        method: 'GET',
 
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response =
+      await fetch(
+        GROQ_MODELS_URL,
+        {
+          method: 'GET',
 
-    const text = await response.text();
+          headers: {
+            Authorization:
+              `Bearer ${apiKey}`,
+
+            'Content-Type':
+              'application/json',
+          },
+        }
+      );
+
+
+    const text =
+      await response.text();
+
 
     let data = null;
 
     try {
-      data = JSON.parse(text);
+      data =
+        JSON.parse(text);
     } catch {
       data = null;
     }
 
+
     if (!response.ok) {
+
       console.error(
-        '[BREW HAVEN] Model list failed:',
-        {
-          status: response.status,
-          error: data || text,
-        }
+        '[BREW HAVEN] Groq models error:',
+        response.status,
+        data || text
       );
 
       return [];
     }
 
-    if (!Array.isArray(data?.data)) {
+
+    if (
+      !Array.isArray(
+        data?.data
+      )
+    ) {
       return [];
     }
+
 
     return data.data
       .filter(
@@ -392,13 +824,14 @@ async function getAvailableModels(apiKey) {
           model.active !== false
       )
       .map(
-        (model) => model.id
+        (model) =>
+          model.id
       );
 
   } catch (error) {
 
     console.error(
-      '[BREW HAVEN] Model list network error:',
+      '[BREW HAVEN] Model list error:',
       error
     );
 
@@ -411,14 +844,20 @@ async function getAvailableModels(apiKey) {
 // SELECT MODEL
 // ============================================================
 
-function selectModel(availableModels) {
+function selectModel(
+  availableModels
+) {
 
   for (
     const preferred of PREFERRED_MODELS
   ) {
+
     if (
-      availableModels.includes(preferred)
+      availableModels.includes(
+        preferred
+      )
     ) {
+
       return preferred;
     }
   }
@@ -440,10 +879,14 @@ async function callGroq({
   const controller =
     new AbortController();
 
+
   const timeout =
-    setTimeout(() => {
-      controller.abort();
-    }, 12000);
+    setTimeout(
+      () =>
+        controller.abort(),
+      15000
+    );
+
 
   try {
 
@@ -451,34 +894,44 @@ async function callGroq({
       await fetch(
         GROQ_API_URL,
         {
-          method: 'POST',
+
+          method:
+            'POST',
 
           headers: {
+
             'Content-Type':
               'application/json',
 
             Authorization:
               `Bearer ${apiKey}`,
+
           },
 
-          body: JSON.stringify({
+          body:
+            JSON.stringify({
 
-            model,
+              model,
 
-            messages,
+              messages,
 
-            temperature: 0.4,
+              temperature:
+                0.35,
 
-            max_tokens: 350,
+              max_tokens:
+                350,
 
-            top_p: 0.9,
+              top_p:
+                0.9,
 
-            stream: false,
+              stream:
+                false,
 
-          }),
+            }),
 
           signal:
             controller.signal,
+
         }
       );
 
@@ -490,10 +943,16 @@ async function callGroq({
     let data = null;
 
     try {
+
       data =
-        JSON.parse(rawText);
+        JSON.parse(
+          rawText
+        );
+
     } catch {
+
       data = null;
+
     }
 
 
@@ -525,16 +984,20 @@ async function callGroq({
 
       return {
 
-        ok: false,
+        ok:
+          false,
 
-        status: 408,
+        status:
+          408,
 
-        data: null,
+        data:
+          null,
 
         rawText:
           'Groq request timed out.',
 
-        timeout: true,
+        timeout:
+          true,
 
       };
     }
@@ -542,33 +1005,41 @@ async function callGroq({
 
     return {
 
-      ok: false,
+      ok:
+        false,
 
-      status: 500,
+      status:
+        500,
 
-      data: null,
+      data:
+        null,
 
       rawText:
         error?.message ||
-        'Network error.',
+        'Network error',
 
-      networkError: true,
+      networkError:
+        true,
 
     };
 
   } finally {
 
-    clearTimeout(timeout);
+    clearTimeout(
+      timeout
+    );
 
   }
 }
 
 
 // ============================================================
-// GROQ ERROR MESSAGE
+// GROQ ERROR
 // ============================================================
 
-function getGroqErrorMessage(result) {
+function getGroqErrorMessage(
+  result
+) {
 
   return (
     result?.data?.error?.message ||
@@ -583,33 +1054,53 @@ function getGroqErrorMessage(result) {
 // DIRECT BUSINESS ANSWERS
 // ============================================================
 
-function getDirectBusinessAnswer(message) {
+function getDirectBusinessAnswer(
+  message
+) {
 
   const text =
     cleanText(message)
       .toLowerCase();
 
 
+  // ==========================================================
   // DELIVERY TIME
+  // ==========================================================
 
   const deliveryTimePatterns = [
 
     'delivery time',
     'delivary time',
+
     'delivery ketla',
     'delivary ketla',
+
     'delivery ketla time',
     'delivary ketla time',
+
     'ketla time ma delivery',
+    'ketlo time delivery',
+
     'delivery kyare',
+
+    'delivery when',
+
     'how long delivery',
+
     'how long does delivery',
+
     'when will my order arrive',
+
     'when will my coffee arrive',
+
     'order ketla time',
+
     'coffee ketla time ma',
+
     'delivery ma ketlo time',
+
     'delivery ma ketla time',
+
     'delivery ketli vaar',
 
   ];
@@ -631,18 +1122,28 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // DELIVERY AVAILABLE
+  // ==========================================================
 
   const deliveryPatterns = [
 
     'do you deliver',
+
     'delivery available',
+
     'delivery che',
+
     'delivery karo',
+
     'delivery aapo',
+
     'tame delivery',
+
     'deliver karo',
+
     'deliver che',
+
     'can you deliver',
 
   ];
@@ -663,7 +1164,9 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // PAYMENT
+  // ==========================================================
 
   if (
     text.includes('payment') ||
@@ -680,12 +1183,13 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // WIFI
+  // ==========================================================
 
   if (
     text.includes('wifi') ||
-    text.includes('wi-fi') ||
-    text.includes('internet')
+    text.includes('wi-fi')
   ) {
 
     return (
@@ -694,7 +1198,9 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // PET
+  // ==========================================================
 
   if (
     text.includes('pet') ||
@@ -708,30 +1214,38 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // BEST SELLER
+  // ==========================================================
 
   if (
     text.includes('best seller') ||
     text.includes('bestseller') ||
-    text.includes('popular coffee') ||
     text.includes('most popular') ||
-    text.includes('best coffee')
+    text.includes('popular coffee') ||
+    text.includes('best coffee') ||
+    text.includes('best drink') ||
+    text.includes('best coffee su') ||
+    text.includes('best seller su')
   ) {
 
     return (
       "Our best sellers are Cappuccino ₹149, Cold Brew ₹159, " +
       "Filter Kaapi ₹99, and Banana Bread ₹109. If you want " +
-      "a coffee, I'd start with the Cappuccino."
+      "a coffee, I'd recommend the Cappuccino."
     );
   }
 
 
+  // ==========================================================
   // LOYALTY
+  // ==========================================================
 
   if (
     text.includes('loyalty') ||
     text.includes('free coffee') ||
-    text.includes('8th coffee')
+    text.includes('8th coffee') ||
+    text.includes('eighth coffee')
   ) {
 
     return (
@@ -741,13 +1255,16 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // MILK
+  // ==========================================================
 
   if (
     text.includes('oat milk') ||
     text.includes('almond milk') ||
     text.includes('soy milk') ||
-    text.includes('milk option')
+    text.includes('milk option') ||
+    text.includes('milk options')
   ) {
 
     return (
@@ -757,7 +1274,9 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // SUGAR
+  // ==========================================================
 
   if (
     text.includes('sugar free') ||
@@ -773,44 +1292,53 @@ function getDirectBusinessAnswer(message) {
   }
 
 
+  // ==========================================================
   // COLD
+  // ==========================================================
 
   if (
     text.includes('cold coffee') ||
     text.includes('iced coffee') ||
-    text.includes('something cold')
+    text.includes('something cold') ||
+    text.includes('coffee cold')
   ) {
 
     return (
-      "For something cold, I'd recommend the Cold Brew ₹159 " +
+      "For something cold, I'd recommend Cold Brew ₹159 " +
       "or Iced Latte ₹169."
     );
   }
 
 
+  // ==========================================================
   // STRONG
+  // ==========================================================
 
   if (
     text.includes('strong coffee') ||
     text.includes('strongest coffee') ||
     text.includes('something strong') ||
+    text.includes('strong coffee joiye') ||
     text === 'strong'
   ) {
 
     return (
-      "If you want something strong, go for an Espresso ₹99 " +
+      "If you want something strong, go for Espresso ₹99 " +
       "or Americano ₹129. I'd pick the Americano if you want " +
       "a longer drink."
     );
   }
 
 
+  // ==========================================================
   // CHEAP
+  // ==========================================================
 
   if (
     text.includes('cheap coffee') ||
     text.includes('cheapest coffee') ||
     text.includes('budget coffee') ||
+    text.includes('cheap coffee joiye') ||
     text === 'cheap'
   ) {
 
@@ -821,17 +1349,22 @@ function getDirectBusinessAnswer(message) {
   }
 
 
-  // HOURS
+  // ==========================================================
+  // OPENING / CLOSING
+  // ==========================================================
 
   if (
     text.includes('opening hours') ||
     text.includes('opening time') ||
     text.includes('closing time') ||
     text.includes('what time') ||
+    text.includes('when do you close') ||
+    text.includes('when does it close') ||
     text.includes('open today') ||
     text.includes('shop kyare') ||
     text.includes('bandh thay') ||
-    text.includes('kyare open')
+    text.includes('kyare open') ||
+    text.includes('kyare bandh')
   ) {
 
     return (
@@ -848,16 +1381,22 @@ function getDirectBusinessAnswer(message) {
 
 
 // ============================================================
-// HISTORY
+// HISTORY SANITIZER
 // ============================================================
 
-function buildHistory(history) {
+function buildHistory(
+  history
+) {
 
-  if (!Array.isArray(history)) {
+  if (
+    !Array.isArray(history)
+  ) {
     return [];
   }
 
+
   return history
+
     .filter((item) => {
 
       if (!item) {
@@ -882,7 +1421,7 @@ function buildHistory(history) {
       return true;
     })
 
-    .slice(-6)
+    .slice(-8)
 
     .map((item) => {
 
@@ -891,10 +1430,12 @@ function buildHistory(history) {
           ? 'assistant'
           : item.role;
 
+
       const content =
         typeof item.text === 'string'
           ? item.text
           : item.content;
+
 
       return {
 
@@ -905,12 +1446,138 @@ function buildHistory(history) {
             .slice(0, 1000),
 
       };
+
     })
 
     .filter(
       (item) =>
         item.content.length > 0
     );
+}
+
+
+// ============================================================
+// VERY OBVIOUS OFF-TOPIC GUARD
+// ============================================================
+//
+// This is NOT the main intelligence layer.
+// It only blocks clearly unrelated requests.
+// Ambiguous/natural cafe requests are allowed to reach AI.
+// ============================================================
+
+function isObviouslyOffTopic(
+  message
+) {
+
+  const text =
+    cleanText(message)
+      .toLowerCase();
+
+
+  const offTopicPatterns = [
+
+    // Programming
+    'write code',
+    'write a code',
+    'coding',
+    'javascript',
+    'typescript',
+    'python',
+    'java programming',
+    'c++',
+    'flutter code',
+    'react code',
+    'html code',
+    'css code',
+
+    // General technology
+    'what is ai',
+    'what is artificial intelligence',
+    'what is blockchain',
+    'what is bitcoin',
+    'what is cryptocurrency',
+
+    // Politics
+    'narendra modi',
+    'donald trump',
+    'politics',
+    'politician',
+
+    // Sports
+    'cricket match',
+    'football match',
+    'ipl score',
+    'who won the match',
+    'sports news',
+
+    // News
+    'latest news',
+    'today news',
+    'breaking news',
+
+    // Creative requests
+    'write a poem',
+    'write a story',
+    'tell me a joke',
+    'make me laugh',
+
+  ];
+
+
+  return offTopicPatterns.some(
+    (pattern) =>
+      text.includes(pattern)
+  );
+}
+
+
+// ============================================================
+// LANGUAGE FALLBACK
+// ============================================================
+
+function getFallbackReply(
+  message
+) {
+
+  const text =
+    cleanText(message);
+
+
+  // Gujarati script
+
+  if (
+    /[\u0A80-\u0AFF]/.test(text)
+  ) {
+
+    return (
+      "હું Bru, Brew Haven નો virtual barista છું. " +
+      "હું તમને અમારા coffee, menu, prices, opening hours, " +
+      "delivery અને recommendations વિશે મદદ કરી શકું છું. ☕"
+    );
+  }
+
+
+  // Hindi / Devanagari
+
+  if (
+    /[\u0900-\u097F]/.test(text)
+  ) {
+
+    return (
+      "मैं Bru, Brew Haven का virtual barista हूँ। " +
+      "मैं आपको हमारे coffee, menu, prices, opening hours, " +
+      "delivery और recommendations के बारे में मदद कर सकता हूँ। ☕"
+    );
+  }
+
+
+  // Default English
+
+  return (
+    "I'm Bru, Brew Haven's virtual barista. I can help with " +
+    "our coffee, menu, prices, opening hours, delivery, and " +
+    "recommendations. ☕"
+  );
 }
 
 
@@ -923,7 +1590,10 @@ export default async function handler(
   res
 ) {
 
-  setupCors(req, res);
+  setupCors(
+    req,
+    res
+  );
 
 
   // ==========================================================
@@ -937,7 +1607,6 @@ export default async function handler(
     return res
       .status(204)
       .end();
-
   }
 
 
@@ -950,7 +1619,7 @@ export default async function handler(
 
 
   // ==========================================================
-  // GET HEALTH + MODEL TEST
+  // GET HEALTH CHECK
   // ==========================================================
 
   if (
@@ -965,13 +1634,16 @@ export default async function handler(
 
           ok: false,
 
-          groqConfigured: false,
+          service:
+            'Brew Haven AI',
 
-          error:
+          groqConfigured:
+            false,
+
+          message:
             'GROQ_API_KEY is missing.',
 
         });
-
     }
 
 
@@ -1001,9 +1673,6 @@ export default async function handler(
 
         selectedModel,
 
-        preferredModels:
-          PREFERRED_MODELS,
-
         availablePreferredModels:
           PREFERRED_MODELS.filter(
             (model) =>
@@ -1014,16 +1683,15 @@ export default async function handler(
 
         message:
           selectedModel
-            ? 'Groq API and model access are working.'
-            : 'Groq API works, but no preferred chat model is available.',
+            ? 'AI service is configured.'
+            : 'No preferred Groq model is available.',
 
       });
-
   }
 
 
   // ==========================================================
-  // POST ONLY
+  // ONLY POST
   // ==========================================================
 
   if (
@@ -1038,11 +1706,14 @@ export default async function handler(
           'Method not allowed.',
 
       });
-
   }
 
 
   try {
+
+    // ========================================================
+    // API KEY CHECK
+    // ========================================================
 
     if (!apiKey) {
 
@@ -1057,7 +1728,6 @@ export default async function handler(
             'MISSING_API_KEY',
 
         });
-
     }
 
 
@@ -1098,7 +1768,6 @@ export default async function handler(
             'EMPTY_MESSAGE',
 
         });
-
     }
 
 
@@ -1117,7 +1786,6 @@ export default async function handler(
             'MESSAGE_TOO_LONG',
 
         });
-
     }
 
 
@@ -1150,12 +1818,43 @@ export default async function handler(
             'business-data',
 
         });
-
     }
 
 
     // ========================================================
-    // GET AVAILABLE MODELS
+    // OBVIOUS OFF-TOPIC BLOCK
+    // ========================================================
+
+    if (
+      isObviouslyOffTopic(
+        userMessage
+      )
+    ) {
+
+      console.log(
+        '[BREW HAVEN] Off-topic request blocked:',
+        userMessage
+      );
+
+
+      return res
+        .status(200)
+        .json({
+
+          reply:
+            getFallbackReply(
+              userMessage
+            ),
+
+          source:
+            'topic-filter',
+
+        });
+    }
+
+
+    // ========================================================
+    // GET AVAILABLE MODEL
     // ========================================================
 
     const availableModels =
@@ -1173,10 +1872,8 @@ export default async function handler(
     if (!model) {
 
       console.error(
-        '[BREW HAVEN] No preferred model available.',
-        {
-          availableModels,
-        }
+        '[BREW HAVEN] No compatible Groq model:',
+        availableModels
       );
 
 
@@ -1185,20 +1882,13 @@ export default async function handler(
         .json({
 
           error:
-            'No compatible Groq chat model is available for this API key.',
+            'No compatible AI model is currently available.',
 
           code:
             'NO_MODEL_AVAILABLE',
 
         });
-
     }
-
-
-    console.log(
-      '[BREW HAVEN] Selected model:',
-      model
-    );
 
 
     // ========================================================
@@ -1231,8 +1921,14 @@ export default async function handler(
 
 
     // ========================================================
-    // FIRST REQUEST
+    // GROQ REQUEST
     // ========================================================
+
+    console.log(
+      '[BREW HAVEN] Calling Groq:',
+      model
+    );
+
 
     let result =
       await callGroq({
@@ -1250,17 +1946,23 @@ export default async function handler(
     // SUCCESS
     // ========================================================
 
-    if (result.ok) {
+    if (
+      result.ok
+    ) {
 
       const reply =
-        result?.data?.choices?.[0]?.message?.content;
+        result?.data
+          ?.choices?.[0]
+          ?.message?.content;
 
 
-      if (reply) {
+      if (
+        reply &&
+        reply.trim()
+      ) {
 
         console.log(
-          '[BREW HAVEN] Groq success:',
-          model
+          '[BREW HAVEN] Groq success.'
         );
 
 
@@ -1277,14 +1979,12 @@ export default async function handler(
             model,
 
           });
-
       }
-
     }
 
 
     // ========================================================
-    // ERROR LOG
+    // LOG ERROR
     // ========================================================
 
     console.error(
@@ -1314,7 +2014,7 @@ export default async function handler(
 
 
     // ========================================================
-    // RETRY TEMPORARY ERRORS
+    // RETRY
     // ========================================================
 
     if (
@@ -1347,7 +2047,6 @@ export default async function handler(
 
         waitTime =
           retryAfter * 1000;
-
       }
 
 
@@ -1368,20 +2067,27 @@ export default async function handler(
         });
 
 
-      if (result.ok) {
+      if (
+        result.ok
+      ) {
 
-        const reply =
-          result?.data?.choices?.[0]?.message?.content;
+        const retryReply =
+          result?.data
+            ?.choices?.[0]
+            ?.message?.content;
 
 
-        if (reply) {
+        if (
+          retryReply &&
+          retryReply.trim()
+        ) {
 
           return res
             .status(200)
             .json({
 
               reply:
-                reply.trim(),
+                retryReply.trim(),
 
               source:
                 'groq-retry',
@@ -1389,9 +2095,7 @@ export default async function handler(
               model,
 
             });
-
         }
-
       }
 
 
@@ -1411,12 +2115,11 @@ export default async function handler(
 
         }
       );
-
     }
 
 
     // ========================================================
-    // USER ERROR
+    // ERROR RESPONSE
     // ========================================================
 
     let errorMessage =
@@ -1428,7 +2131,7 @@ export default async function handler(
     ) {
 
       errorMessage =
-        'The AI service authentication is invalid. Please check the GROQ_API_KEY in Vercel.';
+        'The AI service authentication is invalid.';
 
     }
     else if (
@@ -1436,7 +2139,7 @@ export default async function handler(
     ) {
 
       errorMessage =
-        'The AI service access was denied. Please check your Groq project permissions.';
+        'The AI service access was denied.';
 
     }
     else if (
@@ -1452,7 +2155,7 @@ export default async function handler(
     ) {
 
       errorMessage =
-        'The AI request was rejected. Please try asking your question differently.';
+        'The AI request was rejected. Please try asking differently.';
 
     }
     else if (
@@ -1460,7 +2163,7 @@ export default async function handler(
     ) {
 
       errorMessage =
-        'The selected Groq model is not available for this API key.';
+        'The selected AI model is currently unavailable.';
 
     }
 
@@ -1477,8 +2180,6 @@ export default async function handler(
 
         providerStatus:
           result.status,
-
-        model,
 
       });
 
@@ -1502,6 +2203,5 @@ export default async function handler(
           'INTERNAL_SERVER_ERROR',
 
       });
-
   }
 }
