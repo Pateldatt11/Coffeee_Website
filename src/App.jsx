@@ -8,6 +8,7 @@ import Menu from './Pages/Menu';
 import About from './Pages/About';
 import FAQ from './Pages/FAQ';
 import OrderOnline from './Pages/OrderOnline';
+import CustomizeCoffee from './Pages/CustomizeCoffee';
 import Signup from './Pages/Signup';
 import Login from './Pages/Login';
 import ForgotPassword from './Pages/Forgotpassword';
@@ -139,6 +140,12 @@ function App() {
             <Route path="/order" element={
               <ProtectedRoute>
                 <OrderOnline />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/customize/:itemId" element={
+              <ProtectedRoute>
+                <CustomizeCoffee />
               </ProtectedRoute>
             } />
 
