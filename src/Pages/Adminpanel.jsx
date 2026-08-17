@@ -47,6 +47,17 @@ const BATCH_CHUNK_SIZE = 450;
 // cross-reference against another row in the same table if needed.
 const shortUid = (uid) => (uid ? `${uid.slice(0, 8)}…` : '—');
 
+// Order items customized via CustomizeCoffee.jsx carry a `customization`
+// object: { size, roast, milk, shot, sugar, straw }. This turns that
+// into one short, human-readable line for tables — used in both the
+// Orders tab and nowhere else, so kept local to this file.
+const formatCustomization = (c) => {
+  if (!c) return null;
+  return [c.size, c.milk, c.shot, c.sugar, c.roast, c.straw ? 'Extra Straw' : null]
+    .filter(Boolean)
+    .join(' · ');
+};
+
 const AdminPanel = () => {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
@@ -424,6 +435,51 @@ const AdminPanel = () => {
     return { topSellers, worstSellers, paymentStats, totalRevenue, totalOrders, totalVisits, uniqueVisitors, dayLabels, dayCounts };
   }, [orders, visits]);
 
+  // ================= CUSTOMIZATION STATS (derived, from Customize Coffee page) =================
+  // Every order item that went through CustomizeCoffee.jsx carries a
+  // `customization` object. This tallies how many items were customized
+  // vs plain "Add to Cart", and which choice was picked most often in
+  // each category — so you can see e.g. "Oat Milk is the #1 milk pick"
+  // without digging through raw order rows.
+  const customizationStats = useMemo(() => {
+    const counts = { size: {}, milk: {}, shot: {}, sugar: {}, roast: {} };
+    let customizedQty = 0;
+    let plainQty = 0;
+    let strawQty = 0;
+
+    orders.forEach(order => {
+      (order.items || []).forEach(item => {
+        const qty = item.qty || 1;
+        if (item.customization) {
+          customizedQty += qty;
+          if (item.customization.straw) strawQty += qty;
+          ['size', 'milk', 'shot', 'sugar', 'roast'].forEach(key => {
+            const val = item.customization[key];
+            if (val) counts[key][val] = (counts[key][val] || 0) + qty;
+          });
+        } else {
+          plainQty += qty;
+        }
+      });
+    });
+
+    const topOf = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+
+    return {
+      customizedQty,
+      plainQty,
+      strawQty,
+      topSizes: topOf(counts.size),
+      topMilk: topOf(counts.milk),
+      topShot: topOf(counts.shot),
+      topSugar: topOf(counts.sugar),
+      topRoast: topOf(counts.roast),
+    };
+  }, [orders]);
+
+  const formatTopList = (entries) =>
+    entries.length ? entries.map(([label, qty]) => `${label} (${qty})`).join(', ') : '—';
+
   // ---- chart refs + instances ----
   const salesCanvasRef = useRef(null);
   const paymentCanvasRef = useRef(null);
@@ -586,7 +642,22 @@ const AdminPanel = () => {
                           <div className="admin-subtext">{order.phone}</div>
                         </td>
                         <td>
-                          {(order.items || []).map(i => `${i.name} ×${i.qty}`).join(', ')}
+                          {/* Each item on its own line so a per-item customization
+                              tag (size/milk/shot/sugar/roast/straw) can sit right
+                              under the item it belongs to, instead of one long
+                              comma-joined string that hides which options go
+                              with which coffee. */}
+                          {(order.items || []).map((i, idx) => {
+                            const customTag = formatCustomization(i.customization);
+                            return (
+                              <div key={idx} className="admin-order-item-line">
+                                <span>{i.name} ×{i.qty}</span>
+                                {customTag && (
+                                  <div className="admin-subtext admin-customization-tag">{customTag}</div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </td>
                         <td>₹ {order.amount}</td>
                         <td>
@@ -855,6 +926,26 @@ const AdminPanel = () => {
               </div>
             </div>
 
+            {/* Customize Coffee adoption — how many items sold were customized
+                vs plain "Add to Cart", plus how many of those added a straw. */}
+            <div className="admin-stats-row" style={{ marginTop: '1rem' }}>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Customized Items Sold</p>
+                <h3 className="admin-stat-value">{customizationStats.customizedQty}</h3>
+                <p className="admin-stat-sub">Ordered via Customize page</p>
+              </div>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Standard Items Sold</p>
+                <h3 className="admin-stat-value">{customizationStats.plainQty}</h3>
+                <p className="admin-stat-sub">Ordered via plain Add to Cart</p>
+              </div>
+              <div className="admin-stat-card">
+                <p className="admin-stat-label">Extra Straw Requests</p>
+                <h3 className="admin-stat-value">{customizationStats.strawQty}</h3>
+                <p className="admin-stat-sub">Among customized items</p>
+              </div>
+            </div>
+
             <div className="admin-charts-grid">
               <div className="admin-chart-card">
                 <h4>Best Selling Coffee</h4>
@@ -884,6 +975,27 @@ const AdminPanel = () => {
                   ) : analytics.worstSellers.map(([name, qty]) => (
                     <tr key={name}><td>{name}</td><td>{qty}</td></tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Popular Customizations — most-picked choice in each category,
+                built entirely from existing order data, no extra reads. */}
+            <div className="admin-table-wrap" style={{ marginTop: '1.5rem' }}>
+              <table className="admin-table">
+                <thead><tr><th>Customization Type</th><th>Top Choices (qty ordered)</th></tr></thead>
+                <tbody>
+                  {customizationStats.customizedQty === 0 ? (
+                    <tr><td colSpan="2">No customized orders yet.</td></tr>
+                  ) : (
+                    <>
+                      <tr><td>Size</td><td>{formatTopList(customizationStats.topSizes)}</td></tr>
+                      <tr><td>Milk</td><td>{formatTopList(customizationStats.topMilk)}</td></tr>
+                      <tr><td>Shot Strength</td><td>{formatTopList(customizationStats.topShot)}</td></tr>
+                      <tr><td>Sugar Level</td><td>{formatTopList(customizationStats.topSugar)}</td></tr>
+                      <tr><td>Roast</td><td>{formatTopList(customizationStats.topRoast)}</td></tr>
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>
