@@ -119,6 +119,52 @@
   background: var(--gold);
 }
 
+/* =====================================================
+   ADD THIS BLOCK TO THE BOTTOM OF YOUR EXISTING
+   OrderOnline.css — do not replace the whole file,
+   just paste this at the end.
+===================================================== */
+
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.customize-btn {
+  position: relative;
+  padding: 0.55rem 1.3rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(201, 149, 108, 0.4);
+  color: var(--gold-light);
+  cursor: none;
+  overflow: hidden;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: all 0.35s var(--transition);
+}
+
+.customize-btn:hover {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
+.customize-btn span { position: relative; z-index: 1; }
+
+/* Customization line inside a cart item */
+.cart-item-custom {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
 .order-title {
   font-family: 'Bebas Neue', sans-serif;
   font-size: clamp(5rem, 14vw, 11rem);

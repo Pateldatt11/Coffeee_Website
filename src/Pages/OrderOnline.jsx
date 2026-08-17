@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { addDoc, collection, serverTimestamp, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
 import useRazorpay from '../hooks/useRazorpay';
@@ -22,6 +23,11 @@ const TOKEN_TIERS = [
   { min: 1000, cost: 1000, percent: 20,  label: '20% Off (1000 tokens)' },
   { min: 500,  cost: 500,  percent: 10,  label: '10% Off (500 tokens)' },
 ];
+
+// Key used to hand off a customized item from CustomizeCoffee.jsx back
+// into this page's cart (see the pickup effect near the top of the
+// component). Kept as a constant so both files can stay in sync.
+const PENDING_CART_KEY = 'brewhaven_pending_cart_item';
 
 // Minimal inline theme so this works even without touching OrderOnline.css.
 // Colors match the same palette used across Nav.css / Profile.css.
@@ -68,6 +74,8 @@ const rewardStyles = {
 };
 
 const OrderOnline = () => {
+  const navigate = useNavigate();
+
   const [activeCategory, setActiveCategory] = useState('All');
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -141,6 +149,28 @@ const OrderOnline = () => {
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
+  // ================= PICK UP A CUSTOMIZED ITEM =================
+  // CustomizeCoffee.jsx stages one finished item in localStorage, then
+  // navigates back here. On mount we grab it, drop it straight into the
+  // cart, clear the staging key, and pop the cart open so the person
+  // sees it landed. Runs once — customized items get their own unique
+  // id (see CustomizeCoffee.jsx), so they never merge with a plain
+  // "Add to Cart" entry of the same base coffee.
+  useEffect(() => {
+    try {
+      const pending = localStorage.getItem(PENDING_CART_KEY);
+      if (pending) {
+        const pendingItem = JSON.parse(pending);
+        setCart((prev) => [...prev, pendingItem]);
+        setCartOpen(true);
+      }
+    } catch (err) {
+      console.error('Could not restore customized item:', err);
+    } finally {
+      localStorage.removeItem(PENDING_CART_KEY);
+    }
+  }, []);
+
   const onMouseMove = useCallback((e) => {
     if (dotRef.current) {
       dotRef.current.style.left = `${e.clientX}px`;
@@ -194,6 +224,10 @@ const OrderOnline = () => {
     });
   };
 
+  const goToCustomize = (item) => {
+    navigate(`/customize/${item.id}`, { state: { item } });
+  };
+
   const updateQty = (id, delta) => {
     setCart(prev =>
       prev.map(c => c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c)
@@ -227,7 +261,8 @@ const OrderOnline = () => {
   const buildOrderForBill = (orderId, method, paymentId = '') => ({
     id: orderId,
     items: cart.map(item => ({
-      name: item.name, price: item.price, qty: item.qty, img: item.img || ''
+      name: item.name, price: item.price, qty: item.qty, img: item.img || '',
+      customization: item.customization || null,
     })),
     subtotal: totalPrice,
     tokenDiscount: tokenDiscountAmount,
@@ -264,13 +299,17 @@ const OrderOnline = () => {
       // picture of what was ordered — previously only id/name/category/
       // price/qty were stored, so every order card fell back to a
       // placeholder image with no way to recover the real one.
+      // Also carries `customization` (size/milk/roast/shot/sugar/straw)
+      // when the item came through the Customize page, so past orders
+      // remember exactly how it was made.
       items: cart.map(item => ({
         id: item.id,
         name: item.name,
         category: item.category,
         price: item.price,
         qty: item.qty,
-        img: item.img || ''
+        img: item.img || '',
+        customization: item.customization || null,
       })),
       status: 'placed',
       createdAt: serverTimestamp()
@@ -475,17 +514,24 @@ const OrderOnline = () => {
                   <div className="order-info">
                     <h3>{item.name}</h3>
                     <p className="order-price">₹ {item.price}</p>
-                    {inCart ? (
-                      <div className="qty-control">
-                        <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
-                        <span className="qty-num">{inCart.qty}</span>
-                        <button className="qty-btn" onClick={() => updateQty(item.id, 1)}>+</button>
-                      </div>
-                    ) : (
-                      <button className="add-btn" onClick={() => addToCart(item)}>
-                        <span>Add to Cart</span>
+
+                    <div className="card-actions">
+                      {inCart ? (
+                        <div className="qty-control">
+                          <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
+                          <span className="qty-num">{inCart.qty}</span>
+                          <button className="qty-btn" onClick={() => updateQty(item.id, 1)}>+</button>
+                        </div>
+                      ) : (
+                        <button className="add-btn" onClick={() => addToCart(item)}>
+                          <span>Add to Cart</span>
+                        </button>
+                      )}
+
+                      <button className="customize-btn" onClick={() => goToCustomize(item)}>
+                        <span>🎨 Customize</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               );
@@ -516,6 +562,18 @@ const OrderOnline = () => {
                       <img src={item.img} alt={item.name} className="cart-item-img" />
                       <div className="cart-item-info">
                         <p className="cart-item-name">{item.name}</p>
+                        {item.customization && (
+                          <p className="cart-item-custom">
+                            {[
+                              item.customization.size,
+                              item.customization.milk,
+                              item.customization.shot,
+                              item.customization.sugar,
+                              item.customization.roast,
+                              item.customization.straw ? 'Extra Straw' : null,
+                            ].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                         <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
                       </div>
                       <div className="qty-control">
