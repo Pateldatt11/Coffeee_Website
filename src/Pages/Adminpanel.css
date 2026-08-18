@@ -620,7 +620,7 @@
 
 .smart-alert-item {
   display: grid;
-  grid-template-columns: minmax(230px, 2fr) 90px 90px 125px minmax(170px, auto);
+  grid-template-columns: minmax(220px, 2fr) 150px 90px 125px minmax(170px, auto);
   align-items: center;
   gap: 1rem;
   padding: 0.9rem 1.2rem;
@@ -674,6 +674,11 @@
   font-size: 0.72rem;
 }
 
+.smart-alert-price {
+  color: #b18224 !important;
+  font-weight: 800 !important;
+}
+
 .smart-alert-image,
 .smart-alert-image-placeholder {
   width: 44px;
@@ -698,7 +703,7 @@
 .smart-alert-stock span,
 .smart-alert-threshold span {
   display: block;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.3rem;
   color: #949ba0;
   font-size: 0.68rem;
 }
@@ -707,6 +712,10 @@
 .smart-alert-threshold strong {
   color: #252f36;
   font-size: 0.9rem;
+}
+
+.smart-alert-stock-control {
+  background: #fff;
 }
 
 .smart-alert-actions {
@@ -1387,8 +1396,8 @@
 
   .smart-alert-item {
     grid-template-columns:
-      minmax(210px, 2fr)
-      75px
+      minmax(200px, 2fr)
+      140px
       75px
       115px
       minmax(150px, auto);
@@ -1439,8 +1448,8 @@
 
   .smart-alert-item {
     grid-template-columns:
-      minmax(200px, 1fr)
-      70px
+      minmax(190px, 1fr)
+      135px
       70px
       110px;
   }

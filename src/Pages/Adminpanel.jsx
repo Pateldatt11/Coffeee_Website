@@ -2476,7 +2476,7 @@ const AdminPanel = () => {
 
   return (
 
-    <div className="admin-page">
+    <div className="admin-panel admin-page">
 
       <div
         className="cursor-dot"
@@ -3630,6 +3630,13 @@ const AdminPanel = () => {
                                 {item.category || 'Coffee'}
                               </span>
 
+                              <span className="smart-alert-price">
+                                ₹
+                                {Number(
+                                  item.price || 0
+                                ).toLocaleString('en-IN')}
+                              </span>
+
                             </div>
 
                           </div>
@@ -3638,12 +3645,63 @@ const AdminPanel = () => {
                           <div className="smart-alert-stock">
 
                             <span>
-                              Current
+                              Current Stock
                             </span>
 
-                            <strong>
-                              {stock}
-                            </strong>
+                            <div className="stock-control smart-alert-stock-control">
+
+                              <button
+                                type="button"
+                                className="stock-btn"
+                                onClick={() =>
+                                  changeStock(
+                                    item,
+                                    -1
+                                  )
+                                }
+                                disabled={
+                                  stock <= 0
+                                }
+                              >
+                                −
+                              </button>
+
+
+                              <input
+                                className="stock-number-input"
+                                type="number"
+                                min="0"
+                                step="1"
+                                defaultValue={
+                                  stock
+                                }
+                                key={`alert-stock-${item.id}-${stock}`}
+                                onBlur={e =>
+                                  handleStockBlur(
+                                    item,
+                                    e
+                                  )
+                                }
+                                onClick={e =>
+                                  e.currentTarget.select()
+                                }
+                              />
+
+
+                              <button
+                                type="button"
+                                className="stock-btn"
+                                onClick={() =>
+                                  changeStock(
+                                    item,
+                                    1
+                                  )
+                                }
+                              >
+                                +
+                              </button>
+
+                            </div>
 
                           </div>
 
