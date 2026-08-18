@@ -187,7 +187,7 @@ export default function Chatbot() {
   return (
     <>
       {/* ======================================================
-          FLOATING BUTTON
+          FLOATING BUTTON (professional AI chat icon)
       ====================================================== */}
 
       {!isOpen && (
@@ -196,7 +196,26 @@ export default function Chatbot() {
           onClick={() => setIsOpen(true)}
           aria-label="Open Brew Haven chatbot"
         >
-          ☕
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            width="26"
+            height="26"
+          >
+            {/* Chat bubble body */}
+            <path d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1.1-3.4A7.96 7.96 0 0 1 4 12Z" />
+            {/* AI sparkle inside bubble */}
+            <path
+              d="M12 8.2l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9.9-2Z"
+              fill="currentColor"
+              stroke="none"
+            />
+          </svg>
+          <span className="chatbot-floating-dot" />
         </button>
       )}
 
