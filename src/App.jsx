@@ -5,6 +5,7 @@ import Nav from './Components/Nav';
 import Home from './Pages/Home';
 import './App.css';
 import Menu from './Pages/Menu';
+import Wishlist from './Pages/Wishlist';
 import About from './Pages/About';
 import FAQ from './Pages/FAQ';
 import OrderOnline from './Pages/OrderOnline';
@@ -35,6 +36,10 @@ function App() {
       '/menu': {
         title: 'Menu | Brew Haven Coffee',
         description: 'Browse classic espresso drinks, regional coffees, cold brews, seasonal specials, and more at Brew Haven.'
+      },
+      '/wishlist': {
+        title: 'My Wishlist | Brew Haven Coffee',
+        description: 'View and manage the coffees you\u2019ve favorited at Brew Haven, all saved in one place.'
       },
       '/about': {
         title: 'About Us | Brew Haven Coffee',
@@ -122,6 +127,12 @@ function App() {
             <Route path="/menu" element={
               <ProtectedRoute>
                 <Menu />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/wishlist" element={
+              <ProtectedRoute>
+                <Wishlist />
               </ProtectedRoute>
             } />
 

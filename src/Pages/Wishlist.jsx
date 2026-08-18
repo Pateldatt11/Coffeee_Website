@@ -1,75 +1,75 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { coffeeMenu } from '../data/menuData';
 import { useFavorites } from '../hooks/useFavorites';
-import './Menu.css';
+import './Menu.css'; // reuses the exact same theme, cards, hover & animations
 
-const allCategories = ["All", ...new Set(coffeeMenu.map((item) => item.category))];
+// Key used to hand a batch of items from Wishlist.jsx to OrderOnline.jsx's
+// cart. OrderOnline picks this up on mount (same pattern it already uses
+// for customized items via PENDING_CART_KEY), then clears it.
+const PENDING_WISHLIST_CART_KEY = 'brewhaven_pending_wishlist_cart_items';
 
-// Small reusable heart icon — outline by default, filled when active.
 const HeartIcon = () => (
   <svg viewBox="0 0 24 24">
     <path d="M12 21s-6.7-4.35-9.3-8.2C.8 9.9 1.6 6.4 4.6 5.1 6.8 4.15 9 5 12 7.5 15 5 17.2 4.15 19.4 5.1c3 1.3 3.8 4.8 1.9 7.7C18.7 16.65 12 21 12 21z" />
   </svg>
 );
 
-const Menu = () => {
-  // Read/write the category via the URL (?category=...) instead of only
-  // local state. This is what makes the Nav mega-menu links actually work:
-  // before, activeCategory always started at "All" no matter what was in
-  // the URL, so clicking a category link from Nav landed on /menu but
-  // never filtered anything.
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const getCategoryFromUrl = () => {
-    const cat = searchParams.get('category');
-    return cat && allCategories.includes(cat) ? cat : 'All';
-  };
-
-  const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+const Wishlist = () => {
   const [selectedItem, setSelectedItem] = useState(null);
+  const [justAdded, setJustAdded] = useState(null); // name of item that just got the "Added" flash
   const dotRef  = useRef(null);
   const ringRef = useRef(null);
+  const navigate = useNavigate();
 
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
 
-  // Keep activeCategory in sync with the URL. Needed because clicking a
-  // Nav link while ALREADY on /menu doesn't remount this component —
-  // React Router just updates the URL, so without this effect the page
-  // wouldn't notice the category changed.
-  useEffect(() => {
-    setActiveCategory(getCategoryFromUrl());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  // Clicking a filter button updates both local state AND the URL, so
-  // the URL always reflects what's shown (shareable/bookmarkable link,
-  // and keeps it consistent with how Nav's links work).
-  const handleCategoryClick = (cat) => {
-    setShowFavoritesOnly(false);
-    setActiveCategory(cat);
-    if (cat === 'All') {
-      setSearchParams({});
-    } else {
-      setSearchParams({ category: cat });
-    }
-  };
-
-  const handleFavoritesToggle = () => {
-    setShowFavoritesOnly((prev) => !prev);
-  };
+  const favoriteItems = coffeeMenu.filter((item) => favorites.includes(item.name));
 
   const handleHeartClick = (e, name) => {
-    e.stopPropagation(); // don't open the details modal
+    e.stopPropagation();
     toggleFavorite(name);
   };
 
-  const filtered = showFavoritesOnly
-    ? coffeeMenu.filter((item) => favorites.includes(item.name))
-    : activeCategory === "All"
-      ? coffeeMenu
-      : coffeeMenu.filter((item) => item.category === activeCategory);
+  // Queues item(s) into the pending-cart list in localStorage. OrderOnline.jsx
+  // reads this on mount and drops them straight into the cart.
+  const queueForCart = (items) => {
+    try {
+      const existingRaw = localStorage.getItem(PENDING_WISHLIST_CART_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      const merged = [...existing, ...items];
+      localStorage.setItem(PENDING_WISHLIST_CART_KEY, JSON.stringify(merged));
+    } catch (err) {
+      console.error('Could not queue item(s) for cart:', err);
+    }
+  };
+
+  const handleAddToCart = (e, item) => {
+    e.stopPropagation();
+    queueForCart([{
+      id: item.name, // coffeeMenu entries have no numeric id — name is unique, used as the cart id
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      img: item.img,
+      qty: 1,
+    }]);
+    setJustAdded(item.name);
+    setTimeout(() => setJustAdded(null), 900);
+  };
+
+  const handleAddAllToCart = () => {
+    if (favoriteItems.length === 0) return;
+    queueForCart(favoriteItems.map((item) => ({
+      id: item.name,
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      img: item.img,
+      qty: 1,
+    })));
+    navigate('/order');
+  };
 
   const onMouseMove = useCallback((e) => {
     if (dotRef.current)  { dotRef.current.style.left  = e.clientX + 'px'; dotRef.current.style.top  = e.clientY + 'px'; }
@@ -82,12 +82,9 @@ const Menu = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    const hoverTargets = document.querySelectorAll('button, .menu-card, .filter-btn, .fav-btn');
+    const hoverTargets = document.querySelectorAll('button, .menu-card, .filter-btn, .fav-btn, .browse-menu-btn, .wishlist-add-cart-btn, .wishlist-add-all-btn');
     hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
 
-    // This observer re-runs whenever activeCategory/showFavoritesOnly changes,
-    // so switching filters re-observes the new set of .menu-card.fade-in
-    // elements and reveals them.
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
       { threshold: 0.1 }
@@ -99,9 +96,8 @@ const Menu = () => {
       hoverTargets.forEach(el => { el.removeEventListener('mouseenter', addHover); el.removeEventListener('mouseleave', rmvHover); });
       observer.disconnect();
     };
-  }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly]);
+  }, [onMouseMove, addHover, rmvHover, favorites.length]);
 
-  // close modal on Escape key
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') setSelectedItem(null); };
     document.addEventListener('keydown', onKeyDown);
@@ -116,14 +112,14 @@ const Menu = () => {
 
       <section className="menu-hero">
         <div className="menu-hero-content">
-          <p className="menu-eyebrow"><span />50+ World-Class Brews</p>
+          <p className="menu-eyebrow"><span />Saved For Later</p>
           <h1 className="menu-title">
-            Our<br />
-            <span className="title-brand">Menu</span>
+            My<br />
+            <span className="title-brand">Wishlist</span>
           </h1>
           <p className="menu-hero-sub">
-            Classic shots · Regional legends · Cold brews · Modern favorites<br />
-            Fuel for coders &amp; late-night builders ⚡☕
+            Every brew you've hearted, all in one place<br />
+            Tap the heart again to remove it ☕
           </p>
         </div>
 
@@ -137,40 +133,31 @@ const Menu = () => {
         <div className="menu-container">
 
           <div className="section-header fade-in">
-            <p className="section-tag">Browse</p>
-            <h2>Explore All <em>Coffees</em></h2>
+            <p className="section-tag">Your Picks</p>
+            <h2>Favorite <em>Coffees</em></h2>
           </div>
 
-          <div className="filter-bar fade-in">
-            {allCategories.map((cat) => (
-              <button
-                key={cat}
-                className={`filter-btn ${!showFavoritesOnly && activeCategory === cat ? 'active' : ''}`}
-                onClick={() => handleCategoryClick(cat)}
-              >
-                <span>{cat}</span>
+          {favoriteItems.length > 0 && (
+            <div className="wishlist-header-actions fade-in">
+              <button className="wishlist-add-all-btn" onClick={handleAddAllToCart}>
+                🛒 Add All to Cart
               </button>
-            ))}
-            <button
-              className={`filter-btn fav-filter-btn ${showFavoritesOnly ? 'active' : ''}`}
-              onClick={handleFavoritesToggle}
-            >
-              <span>♥ My Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}</span>
-            </button>
-          </div>
+            </div>
+          )}
 
-          {filtered.length === 0 ? (
+          {favoriteItems.length === 0 ? (
             <div className="wishlist-empty fade-in">
               <div className="wishlist-empty-icon">♡</div>
-              <h3>No favorites yet</h3>
-              <p>Tap the heart on any coffee to save it here.</p>
+              <h3>Your wishlist is empty</h3>
+              <p>Browse the menu and tap the heart on anything you love.</p>
+              <Link to="/menu" className="browse-menu-btn">Browse the Menu</Link>
             </div>
           ) : (
             <div className="menu-grid">
-              {filtered.map((item, index) => (
+              {favoriteItems.map((item, index) => (
                 <div
                   className="menu-card fade-in"
-                  key={`${showFavoritesOnly ? 'fav' : activeCategory}-${item.name}`}
+                  key={item.name}
                   onClick={() => setSelectedItem(item)}
                   style={{ transitionDelay: `${(index % 8) * 0.07}s`, cursor: 'pointer' }}
                 >
@@ -184,7 +171,7 @@ const Menu = () => {
                     <button
                       className={`fav-btn ${isFavorite(item.name) ? 'active' : ''}`}
                       onClick={(e) => handleHeartClick(e, item.name)}
-                      aria-label={isFavorite(item.name) ? 'Remove from favorites' : 'Add to favorites'}
+                      aria-label="Remove from favorites"
                     >
                       <HeartIcon />
                     </button>
@@ -198,6 +185,12 @@ const Menu = () => {
                     <p className="category-tag">{item.category}</p>
                     <h3>{item.name}</h3>
                     <p className="price">₹ {item.price}</p>
+                    <button
+                      className={`wishlist-add-cart-btn ${justAdded === item.name ? 'added' : ''}`}
+                      onClick={(e) => handleAddToCart(e, item)}
+                    >
+                      {justAdded === item.name ? '✓ Added' : '🛒 Add to Cart'}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -207,7 +200,6 @@ const Menu = () => {
         </div>
       </section>
 
-      {/* Details Modal */}
       {selectedItem && (
         <div className="details-overlay" onClick={() => setSelectedItem(null)}>
           <div className="details-modal" onClick={(e) => e.stopPropagation()}>
@@ -215,7 +207,7 @@ const Menu = () => {
             <button
               className={`fav-btn-modal ${isFavorite(selectedItem.name) ? 'active' : ''}`}
               onClick={(e) => handleHeartClick(e, selectedItem.name)}
-              aria-label={isFavorite(selectedItem.name) ? 'Remove from favorites' : 'Add to favorites'}
+              aria-label="Remove from favorites"
             >
               <HeartIcon />
             </button>
@@ -245,6 +237,14 @@ const Menu = () => {
               {selectedItem.description && (
                 <p className="details-description">{selectedItem.description}</p>
               )}
+
+              <button
+                className="wishlist-add-cart-btn"
+                style={{ marginTop: '1.2rem' }}
+                onClick={(e) => handleAddToCart(e, selectedItem)}
+              >
+                🛒 Add to Cart
+              </button>
             </div>
           </div>
         </div>
@@ -254,4 +254,4 @@ const Menu = () => {
   );
 };
 
-export default Menu;
+export default Wishlist;

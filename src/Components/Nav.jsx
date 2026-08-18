@@ -5,6 +5,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { useFavorites } from "../hooks/useFavorites";
 
 // Mega-menu content for the "Menu" nav item.
 // These are the ACTUAL categories that exist in menuData.js (coffeeMenu).
@@ -48,6 +49,19 @@ const MENU_COLUMNS = [
 // all hidden here so the auth pages stay clean and distraction-free.
 const AUTH_ONLY_ROUTES = ["/login", "/signup"];
 
+// Small heart icon used for the Wishlist nav link — outline style,
+// matches the chevron/svg icons already used elsewhere in the navbar.
+const HeartIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path
+      d="M12 21s-6.7-4.35-9.3-8.2C.8 9.9 1.6 6.4 4.6 5.1 6.8 4.15 9 5 12 7.5 15 5 17.2 4.15 19.4 5.1c3 1.3 3.8 4.8 1.9 7.7C18.7 16.65 12 21 12 21z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const Nav = () => {
   const [isOpen, setIsOpen] = useState(false); // mobile hamburger menu
   const [isMenuDropdownOpen, setIsMenuDropdownOpen] = useState(false); // mega menu
@@ -63,6 +77,11 @@ const Nav = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dropdownRef = useRef(null); // used to detect outside clicks
+
+  // Live favorites count for the Wishlist badge — same localStorage-backed
+  // hook used on the Menu and Wishlist pages, so the badge updates instantly
+  // no matter where a heart gets toggled.
+  const { favorites } = useFavorites();
 
   // True when we're currently on /login or /signup — used to strip the
   // navbar down to just the logo + auth links on those pages.
@@ -329,6 +348,26 @@ const Nav = () => {
                 onClick={closeAllMenus}
               >
                 Order Online
+              </NavLink>
+            </li>
+
+            {/* Wishlist — heart icon with a live count badge. Sits with the
+                other nav links on desktop, and inline in the stacked mobile
+                menu the same way. */}
+            <li className="wishlist-link-item">
+              <NavLink
+                to="/wishlist"
+                className={({ isActive }) =>
+                  isActive ? "wishlist-icon-link active" : "wishlist-icon-link"
+                }
+                onClick={closeAllMenus}
+                aria-label="Wishlist"
+              >
+                <HeartIcon />
+                <span className="wishlist-link-text">Wishlist</span>
+                {favorites.length > 0 && (
+                  <span className="wishlist-badge">{favorites.length}</span>
+                )}
               </NavLink>
             </li>
 

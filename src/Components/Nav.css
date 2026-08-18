@@ -319,6 +319,83 @@
 }
 
 /* ══════════════════════════════════════════════
+   Wishlist icon link — heart icon + live count badge.
+   Same pill/gold language as the rest of the navbar.
+   ══════════════════════════════════════════════ */
+
+.wishlist-link-item {
+  display: flex;
+  align-items: center;
+}
+
+.wishlist-icon-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #cbb497;
+  text-decoration: none;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.wishlist-icon-link svg {
+  transition: transform 0.3s ease, fill 0.3s ease, stroke 0.3s ease;
+}
+
+.wishlist-icon-link:hover {
+  color: #e0c9a6;
+  background: rgba(212, 163, 115, 0.1);
+  border-color: rgba(212, 163, 115, 0.3);
+}
+
+.wishlist-icon-link:hover svg {
+  transform: scale(1.12);
+}
+
+.wishlist-icon-link.active {
+  color: #d4a373;
+  background: rgba(212, 163, 115, 0.14);
+  border-color: rgba(212, 163, 115, 0.4);
+}
+
+.wishlist-icon-link.active svg {
+  fill: #d4a373;
+}
+
+.wishlist-link-text {
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.wishlist-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #d4a373, #e0c9a6);
+  color: #2c221d;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  animation: badgePop 0.35s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes badgePop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ══════════════════════════════════════════════
    Mega Dropdown — "Menu" nav item
    Click to open/close (button, not hover-only).
    Panel is full-width, dark, blurred, with columns
@@ -558,6 +635,24 @@
   .nav-search-mobile {
     max-width: 100%;
     width: 100%;
+  }
+
+  .wishlist-icon-link {
+    padding: 0.7rem 1.4rem;
+  }
+
+  .wishlist-link-text {
+    font-size: 1.35rem;
+  }
+
+  .wishlist-icon-link svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .wishlist-badge {
+    top: -2px;
+    right: -10px;
   }
 
   .auth-buttons {
