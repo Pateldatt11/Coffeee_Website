@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
   --gold:       #c9956c;
@@ -13,8 +12,11 @@
   --transition: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+*, *::before, *::after { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+}
 
 .order-page {
   font-family: 'DM Sans', sans-serif;
@@ -26,7 +28,6 @@
   cursor: none;
 }
 
-
 .order-page::before {
   content: '';
   position: fixed; inset: 0; z-index: 0;
@@ -35,28 +36,38 @@
   opacity: 0.5;
 }
 
-
+/* Custom Cursor */
 .cursor-dot {
   width: 8px; height: 8px;
   background: var(--gold);
   border-radius: 50%;
   position: fixed; top: 0; left: 0;
-  pointer-events: none; z-index: 9999;
+  pointer-events: none; 
+  z-index: 99999;
   transform: translate(-50%, -50%);
   transition: transform 0.08s;
 }
+
 .cursor-ring {
   width: 36px; height: 36px;
   border: 1.5px solid var(--gold);
   border-radius: 50%;
   position: fixed; top: 0; left: 0;
-  pointer-events: none; z-index: 9998;
+  pointer-events: none; 
+  z-index: 99998;
   transform: translate(-50%, -50%);
   transition: transform 0.25s var(--transition), width 0.3s, height 0.3s, border-color 0.3s;
   opacity: 0.7;
 }
-.cursor-ring.hovered { width: 60px; height: 60px; border-color: var(--gold-light); opacity: 1; }
 
+.cursor-ring.hovered { 
+  width: 60px; 
+  height: 60px; 
+  border-color: var(--gold-light); 
+  opacity: 1; 
+}
+
+/* Hero Section */
 .order-hero {
   min-height: 52vh;
   position: relative;
@@ -69,7 +80,6 @@
   overflow: hidden;
 }
 
-
 .order-hero::before {
   content: '';
   position: absolute;
@@ -78,7 +88,6 @@
   clip-path: polygon(0 0, 100% 0, 100% 72%, 0 100%);
   z-index: 0;
 }
-
 
 .order-hero::after {
   content: '';
@@ -119,12 +128,6 @@
   background: var(--gold);
 }
 
-/* =====================================================
-   ADD THIS BLOCK TO THE BOTTOM OF YOUR EXISTING
-   OrderOnline.css — do not replace the whole file,
-   just paste this at the end.
-===================================================== */
-
 .card-actions {
   display: flex;
   flex-direction: column;
@@ -157,7 +160,6 @@
 
 .customize-btn span { position: relative; z-index: 1; }
 
-/* Customization line inside a cart item */
 .cart-item-custom {
   font-size: 0.72rem;
   color: var(--muted);
@@ -199,7 +201,6 @@
   animation: revealUp 1s var(--transition) 0.65s forwards;
 }
 
-
 .scroll-hint {
   position: absolute;
   bottom: 2.2rem; left: 8%;
@@ -209,57 +210,127 @@
   z-index: 5; opacity: 0;
   animation: revealLeft 1s var(--transition) 1.2s forwards;
 }
+
 .scroll-line {
   width: 50px; height: 1px;
   background: linear-gradient(to right, transparent, var(--gold));
   position: relative; overflow: hidden;
 }
+
 .scroll-line::after {
   content: ''; position: absolute; inset: 0;
   background: var(--gold-light);
   animation: slideLine 2s ease-in-out infinite;
 }
+
 @keyframes slideLine { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
 
+/* ========================================================
+   AI CHATBOT BUTTON (left) + CART FAB (right)
+   Single source of truth — do not duplicate these rules
+   elsewhere in this file.
+======================================================== */
+.ai-chatbot-btn,
+.cart-fab {
+  position: fixed !important;
+  bottom: 2.2rem !important;
+  width: 60px !important;
+  height: 60px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: none !important;
+  z-index: 9999 !important;
+  transition: all 0.35s var(--transition) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75) !important;
+}
+
+.ai-chatbot-btn {
+  left: 2.2rem !important;
+  background: linear-gradient(135deg, rgba(42, 26, 14, 0.95), rgba(28, 16, 7, 0.95)) !important;
+  border: 1.5px solid var(--gold) !important;
+  color: var(--gold-light) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), inset 0 0 12px rgba(201, 149, 108, 0.2) !important;
+}
+
+.ai-chatbot-btn:hover {
+  transform: scale(1.08) translateY(-3px) !important;
+  border-color: var(--gold-light) !important;
+  box-shadow: 0 0 0 5px var(--gold-dim), 0 18px 40px rgba(0, 0, 0, 0.85) !important;
+}
+
+.ai-chatbot-btn svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--gold-light);
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ai-sparkle-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border: 2px solid var(--espresso);
+  border-radius: 50%;
+  animation: pulseAi 2s infinite;
+}
+
+@keyframes pulseAi {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
 
 .cart-fab {
-  position: fixed;
-  bottom: 2.5rem; right: 2.5rem;
-  width: 62px; height: 62px;
-  background: var(--mocha);
-  border: 1.5px solid rgba(201, 149, 108, 0.35);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem;
-  cursor: none;
-  z-index: 500;
-  transition: all 0.4s var(--transition);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+  right: 2.2rem !important;
+  background: var(--mocha) !important;
+  border: 1.5px solid rgba(201, 149, 108, 0.45) !important;
+  color: var(--gold-light) !important;
+}
+
+.cart-fab svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
 }
 
 .cart-fab:hover,
 .cart-fab.has-items {
-  border-color: var(--gold);
-  background: var(--gold-dim);
-  box-shadow: 0 0 0 4px var(--gold-dim), 0 12px 35px rgba(0,0,0,0.8);
-  transform: scale(1.08);
+  border-color: var(--gold) !important;
+  background: var(--roast) !important;
+  transform: scale(1.08) translateY(-3px) !important;
+  box-shadow: 0 0 0 4px var(--gold-dim), 0 15px 35px rgba(0, 0, 0, 0.85) !important;
 }
 
 .cart-badge {
-  position: absolute;
-  top: -6px; right: -6px;
-  width: 24px; height: 24px;
-  background: var(--gold);
-  color: var(--espresso);
-  border-radius: 50%;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1rem;
-  display: flex; align-items: center; justify-content: center;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  position: absolute !important;
+  top: -4px !important; 
+  right: -4px !important;
+  width: 22px !important; 
+  height: 22px !important;
+  background: var(--gold) !important;
+  color: var(--espresso) !important;
+  border-radius: 50% !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  display: flex !important; 
+  align-items: center !important; 
+  justify-content: center !important;
+  line-height: 1 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6) !important;
+  border: 2px solid var(--espresso) !important;
 }
 
-
+/* Order Section & Menu Cards */
 .order-section {
   padding: 7rem 6% 9rem;
   background: var(--espresso);
@@ -293,7 +364,6 @@
   z-index: 1;
 }
 
-
 .section-header {
   text-align: center;
   margin-bottom: 3.5rem;
@@ -325,7 +395,6 @@
 }
 
 .section-header h2 em { font-style: normal; color: var(--gold); }
-
 
 .filter-bar {
   display: flex; flex-wrap: wrap;
@@ -362,13 +431,11 @@
 .filter-btn.active { background: var(--gold); border-color: var(--gold); color: var(--espresso); font-weight: 600; }
 .filter-btn.active::before { transform: translateX(0); }
 
-
 .order-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 2rem;
 }
-
 
 .order-card {
   background: rgba(26, 15, 8, 0.85);
@@ -469,7 +536,6 @@
 .add-btn:hover::before { transform: translateX(0); }
 .add-btn span { position: relative; z-index: 1; }
 
-
 .qty-control {
   display: flex;
   align-items: center;
@@ -504,12 +570,12 @@
   border-right: 1px solid rgba(201, 149, 108, 0.2);
 }
 
-
+/* Cart Overlay & Drawer */
 .cart-overlay {
   position: fixed; inset: 0;
   background: rgba(5, 3, 1, 0.75);
   backdrop-filter: blur(6px);
-  z-index: 800;
+  z-index: 1000;
   display: flex;
   justify-content: flex-end;
 }
@@ -526,12 +592,12 @@
   overflow-y: auto;
   animation: slideInRight 0.45s var(--transition) forwards;
   position: relative;
-  z-index: 801;
+  z-index: 1001;
 }
 
 @keyframes slideInRight {
   from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(0); opacity: 1; }
 }
 
 .cart-header {
@@ -559,7 +625,6 @@
   color: var(--muted);
   font-size: 0.9rem;
   cursor: none;
-  border-radius: 0;
   clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
   transition: all 0.3s var(--transition);
 }
@@ -576,7 +641,6 @@
 
 .cart-empty span { font-size: 3rem; }
 .cart-empty p { font-size: 1rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-
 
 .cart-items {
   display: flex;
@@ -620,7 +684,6 @@
   margin-top: 0.1rem;
 }
 
-
 .cart-total {
   display: flex;
   justify-content: space-between;
@@ -641,7 +704,6 @@
   color: var(--gold);
   line-height: 1;
 }
-
 
 .checkout-form {
   display: flex;
@@ -673,7 +735,6 @@
   border-radius: 2px;
 }
 
-
 .primary-btn {
   position: relative;
   padding: 1rem 2.6rem;
@@ -701,12 +762,12 @@
 
 .place-order-btn { width: 100%; text-align: center; margin-top: 0.5rem; }
 
-
+/* Success Modal */
 .success-overlay {
   position: fixed; inset: 0;
   background: rgba(5, 3, 1, 0.85);
   backdrop-filter: blur(10px);
-  z-index: 900;
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -759,10 +820,8 @@
   margin-bottom: 2rem;
 }
 
-
 @keyframes revealUp   { from { opacity: 0; transform: translateY(30px); }  to { opacity: 1; transform: translateY(0); } }
 @keyframes revealLeft { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
-
 
 .fade-in {
   opacity: 0;
@@ -771,7 +830,7 @@
 }
 .fade-in.visible { opacity: 1; transform: translateY(0); }
 
-
+/* Responsive */
 @media (max-width: 1100px) {
   .order-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.6rem; }
 }
@@ -788,20 +847,19 @@
   .order-grid { gap: 1.2rem; }
   .filter-bar { gap: 0.5rem; }
   .filter-btn { padding: 0.55rem 1rem; font-size: 0.72rem; }
-  .cart-fab { bottom: 1.5rem; right: 1.5rem; width: 54px; height: 54px; }
+  .ai-chatbot-btn,
+  .cart-fab {
+    bottom: 1.5rem !important;
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .ai-chatbot-btn { left: 1.2rem !important; }
+  .cart-fab { right: 1.2rem !important; }
 }
 
-
-.payment-section {
-  margin: 1.5rem 0;
-}
-
-.payment-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
+/* Payment Info */
+.payment-section { margin: 1.8rem 0 1.5rem; }
+.payment-options { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.2rem; }
 .payment-option {
   display: flex;
   align-items: center;
@@ -815,96 +873,14 @@
   clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
 }
 
-.payment-option:hover {
-  border-color: var(--gold);
-  background: rgba(13, 8, 5, 0.8);
-}
-
-.payment-option input {
-  accent-color: var(--gold);
-}
-
-.payment-option.selected {
-  border-color: var(--gold);
-  background: rgba(201, 149, 108, 0.15);
-}
-
-.payment-icon {
-  font-size: 1.4rem;
-}
-
-
-.card-details-form {
-  margin-top: 1.2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-}
-
-.card-details-form input {
-  font-family: monospace;
-  letter-spacing: 1px;
-}
-
-
-.payment-option {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.2rem;
-  background: rgba(13, 8, 5, 0.6);
-  border: 1px solid rgba(201, 149, 108, 0.25);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
 .payment-option:hover,
 .payment-option.selected {
   border-color: var(--gold);
-  background: rgba(201, 149, 108, 0.12);
+  background: rgba(201, 149, 108, 0.15);
 }
 
 .payment-option input { accent-color: var(--gold); }
-.payment-icon { font-size: 1.5rem; }
-
-
-.payment-section {
-  margin: 1.8rem 0 1.5rem;
-}
-
-.payment-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  margin-bottom: 1.2rem;
-}
-
-.payment-option {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.2rem;
-  background: rgba(13, 8, 5, 0.6);
-  border: 1px solid rgba(201, 149, 108, 0.25);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s var(--transition);
-}
-
-.payment-option:hover,
-.payment-option.selected {
-  border-color: var(--gold);
-  background: rgba(201, 149, 108, 0.15);
-}
-
-.payment-option input {
-  accent-color: var(--gold);
-}
-
-.payment-icon {
-  font-size: 1.5rem;
-}
+.payment-icon { font-size: 1.4rem; }
 
 .card-details-form {
   margin-top: 1rem;
@@ -918,7 +894,6 @@
   letter-spacing: 1.5px;
 }
 
-/* Payment Info Box */
 .payment-info-box {
   margin-top: 1rem;
   padding: 1rem;
@@ -950,7 +925,6 @@
   color: var(--gold-light);
 }
 
-/* Recommended Badge */
 .recommended-badge {
   font-size: 0.65rem;
   padding: 0.2rem 0.5rem;
@@ -962,30 +936,13 @@
   letter-spacing: 0.05em;
 }
 
-/* Processing State */
-.primary-btn.processing {
-  opacity: 0.7;
-  cursor: wait !important;
-}
+.primary-btn.processing { opacity: 0.7; cursor: wait !important; }
+.primary-btn:disabled { opacity: 0.6; cursor: not-allowed !important; }
+.payment-name { flex: 1; }
 
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed !important;
-}
-
-/* Payment Name */
-.payment-name {
-  flex: 1;
-}
 @import './Login.css';
 
-/* ==================== ADMINPANEL.CSS ====================
-  Imports Login.css so colors, fonts, cursor dot/ring animation,
-  and hover effects are 100% identical to the rest of the site.
-  Everything below is NEW — only for elements Login.css never
-  had to style: tabs, tables, and the menu-add form.
-  ========================================================= */
-
+/* ==================== ADMINPANEL.CSS ==================== */
 .admin-page {
   font-family: 'DM Sans', sans-serif;
   color: var(--cream);
@@ -1084,7 +1041,6 @@
 }
 
 .admin-table tbody tr:hover { background: rgba(201, 149, 108, 0.05); }
-
 .admin-subtext { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
 
 .admin-select {
@@ -1185,15 +1141,7 @@
 .admin-form-row input:focus { outline: none; border-color: var(--gold); }
 .admin-form-row .primary-btn { width: auto; padding: 0.75rem 1.6rem; }
 
-/* ================= ORDERS TAB — per-item customization tag ================= */
-/* Each item in the Items column gets its own block (name + qty on top,
-   customization details — size/milk/shot/sugar/roast/straw — right
-   under it in a smaller, muted line). Multiple items in one order get
-   a thin divider between them so they don't visually run together. */
-
-.admin-order-item-line {
-  padding: 0.3rem 0;
-}
+.admin-order-item-line { padding: 0.3rem 0; }
 
 .admin-order-item-line:not(:last-child) {
   border-bottom: 1px dashed rgba(201, 149, 108, 0.12);
@@ -1210,8 +1158,6 @@
   font-size: 0.68rem;
   letter-spacing: 0.02em;
 }
-
-/* ================= ANALYTICS TAB ================= */
 
 .admin-stats-row {
   display: grid;
@@ -1276,20 +1222,27 @@
 
 .admin-chart-wrap { position: relative; height: 260px; }
 
+.admin-row-flagged { background: rgba(224, 112, 96, 0.08); }
+.admin-rating-cell { color: var(--gold); letter-spacing: 2px; }
+
 @media (max-width: 900px) {
   .admin-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-charts-grid { grid-template-columns: 1fr; }
 }
-.admin-row-flagged {
-  background: rgba(224, 112, 96, 0.08);
-}
-.admin-rating-cell {
-  color: var(--gold);
-  letter-spacing: 2px;
-}
+
 @media (max-width: 700px) {
   .admin-page { padding: 90px 1.2rem 2rem; }
   .admin-form-row { flex-direction: column; align-items: stretch; }
   .admin-form-row .primary-btn { width: 100%; }
   .admin-stats-row { grid-template-columns: 1fr; }
+}
+
+/* ========================================================
+   HIDE DUPLICATE / 3RD-PARTY OVERLAPPING WIDGETS
+======================================================== */
+#chat-widget-container,
+.crisp-client,
+.tawk-min-container,
+.chatbot-toggle:not(.ai-chatbot-btn) {
+  display: none !important;
 }

@@ -229,7 +229,7 @@ const OrderOnline = () => {
   const addToCart = (item) => {
     const currentStock = Number(item.stock ?? 0);
     if (currentStock <= 0) {
-      alert(`${item.name} હાલમાં આઉટ ઓફ સ્ટોક છે.`);
+      alert(`Sorry, ${item.name} is currently out of stock.`);
       return;
     }
 
@@ -237,7 +237,7 @@ const OrderOnline = () => {
       const exists = prev.find(c => c.id === item.id);
       if (exists) {
         if (exists.qty >= currentStock) {
-          alert(`માત્ર ${currentStock} આઇટમ સ્ટોકમાં ઉપલબ્ધ છે.`);
+          alert(`Only ${currentStock} units of ${item.name} available in stock.`);
           return prev;
         }
         return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
@@ -259,7 +259,7 @@ const OrderOnline = () => {
           const newQty = c.qty + delta;
 
           if (delta > 0 && newQty > maxStock) {
-            alert(`સ્ટોકમાં માત્ર ${maxStock} ઉપલબ્ધ છે.`);
+            alert(`Only ${maxStock} units available in stock.`);
             return c;
           }
           return { ...c, qty: Math.max(1, newQty) };
@@ -362,7 +362,7 @@ const OrderOnline = () => {
       const liveItem = menuItems.find(m => m.id === c.id);
       const stock = Number(liveItem?.stock ?? 0);
       if (stock < c.qty) {
-        alert(`માફ કરશો, "${c.name}" નો માત્ર ${stock} સ્ટોક ઉપલબ્ધ છે. કૃપા કરીને કાર્ટ અપડેટ કરો.`);
+        alert(`Sorry, only ${stock} units of "${c.name}" are currently available. Please update your cart.`);
         return;
       }
     }
@@ -482,11 +482,33 @@ const OrderOnline = () => {
           </p>
         </div>
 
+        {/* BUTTON 1 (LEFT): AI CHATBOT */}
+        <button
+          className="ai-chatbot-btn"
+          onClick={() => {
+            const chatTrigger = document.querySelector('.chatbot-toggle, #chat-widget-button, .ai-assistant-toggle');
+            if (chatTrigger) chatTrigger.click();
+          }}
+          aria-label="AI Assistant"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            {/* Chat bubble body */}
+            <path d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1.1-3.4A7.96 7.96 0 0 1 4 12Z" />
+            {/* AI sparkle inside bubble */}
+            <path d="M12 8.2l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9.9-2Z" fill="currentColor" stroke="none" />
+          </svg>
+          <span className="ai-sparkle-badge" />
+        </button>
+
+        {/* BUTTON 2 (RIGHT): CART FAB */}
         <button
           className={`cart-fab ${totalItems > 0 ? 'has-items' : ''}`}
           onClick={() => setCartOpen(true)}
+          aria-label="View Cart"
         >
-          <span className="cart-icon">🛒</span>
+          <svg viewBox="0 0 24 24">
+            <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
           {totalItems > 0 && <span className="cart-badge">{totalItems}</span>}
         </button>
 
