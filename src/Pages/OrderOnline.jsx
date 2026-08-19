@@ -155,51 +155,52 @@ const OrderOnline = () => {
     return Number.isFinite(s) ? Math.floor(s) : 0;
   };
 
-  // Helper: Find live menu item corresponding to any cart item (handles customized items too)
+  // Helper: Find base menu item from Firestore for any cart item
   const getLiveItemForCart = useCallback((cartItem) => {
     return menuItems.find(m => 
-      m.id === cartItem.id || 
-      (cartItem.baseId && m.id === cartItem.baseId) || 
+      m.id === (cartItem.baseId || cartItem.id) || 
       m.name?.toLowerCase().trim() === cartItem.name?.toLowerCase().trim()
     );
   }, [menuItems]);
 
-  // Helper: Get total quantity of a base coffee currently inside cart
+  // Helper: Total quantity of this specific coffee across ALL customizations in the cart
   const getTotalQtyInCartForBase = useCallback((baseItemId, baseItemName) => {
     return cart.reduce((total, c) => {
-      if (
-        c.id === baseItemId || 
-        c.baseId === baseItemId || 
-        c.name?.toLowerCase().trim() === baseItemName?.toLowerCase().trim()
-      ) {
-        return total + (Number(c.qty) || 0);
-      }
-      return total;
+      const match = (c.baseId && c.baseId === baseItemId) ||
+                    (c.id === baseItemId) ||
+                    (c.name?.toLowerCase().trim() === baseItemName?.toLowerCase().trim());
+      return match ? total + (Number(c.qty) || 0) : total;
     }, 0);
   }, [cart]);
 
-  // Helper: Cart merge on pickup
-  const mergeIntoCart = (prevCart, incomingItems) => {
-    let next = [...prevCart];
-    incomingItems.forEach((item) => {
-      const idx = next.findIndex((c) => c.id === item.id);
-      if (idx >= 0) {
-        next[idx] = { ...next[idx], qty: next[idx].qty + (item.qty || 1) };
-      } else {
-        next = [...next, { ...item, qty: item.qty || 1 }];
-      }
-    });
-    return next;
-  };
-
+  // ================= PICKUP EFFECT WITH MULTI-CUSTOMIZATION SUPPORT =================
   useEffect(() => {
     let gotSomething = false;
+
+    // 1. Pick up Single Customized Item from Customize page
     try {
       const pending = localStorage.getItem(PENDING_CART_KEY);
       if (pending) {
         const pendingItem = JSON.parse(pending);
-        setCart((prev) => mergeIntoCart(prev, [pendingItem]));
-        gotSomething = true;
+        
+        // Find live base item and check total stock limit
+        const live = menuItems.find(m => m.id === (pendingItem.baseId || pendingItem.id) || m.name === pendingItem.name);
+        const liveStock = live ? getItemStock(live) : 99;
+        const currentInCart = getTotalQtyInCartForBase(live?.id || pendingItem.id, pendingItem.name);
+
+        if (currentInCart + (pendingItem.qty || 1) <= liveStock) {
+          // Assign unique cartItemId so each customized coffee is a separate line item
+          const uniqueCustomItem = {
+            ...pendingItem,
+            baseId: pendingItem.baseId || pendingItem.id,
+            id: pendingItem.id.startsWith('custom_') ? pendingItem.id : `custom_${pendingItem.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            qty: pendingItem.qty || 1
+          };
+          setCart(prev => [...prev, uniqueCustomItem]);
+          gotSomething = true;
+        } else {
+          alert(`Cannot add customized ${pendingItem.name}. Stock limit (${liveStock}) reached!`);
+        }
       }
     } catch (err) {
       console.error('Could not restore customized item:', err);
@@ -207,23 +208,41 @@ const OrderOnline = () => {
       localStorage.removeItem(PENDING_CART_KEY);
     }
 
+    // 2. Pick up Wishlist Items
     try {
       const pendingBatch = localStorage.getItem(PENDING_WISHLIST_CART_KEY);
       if (pendingBatch) {
         const items = JSON.parse(pendingBatch);
         if (Array.isArray(items) && items.length > 0) {
-          setCart((prev) => mergeIntoCart(prev, items));
-          gotSomething = true;
+          setCart(prev => {
+            let next = [...prev];
+            items.forEach(item => {
+              const live = menuItems.find(m => m.id === item.id || m.name === item.name);
+              const maxStock = live ? getItemStock(live) : 99;
+              const inCartCount = next.reduce((tot, c) => (c.baseId === item.id || c.id === item.id ? tot + c.qty : tot), 0);
+
+              if (inCartCount < maxStock) {
+                const idx = next.findIndex(c => c.id === item.id && !c.customization);
+                if (idx >= 0) {
+                  next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
+                } else {
+                  next.push({ ...item, baseId: item.id, qty: 1 });
+                }
+                gotSomething = true;
+              }
+            });
+            return next;
+          });
         }
       }
     } catch (err) {
-      console.error('Could not restore wishlist cart items:', err);
+      console.error('Could not restore wishlist items:', err);
     } finally {
       localStorage.removeItem(PENDING_WISHLIST_CART_KEY);
     }
 
     if (gotSomething) setCartOpen(true);
-  }, []);
+  }, [menuItems, getTotalQtyInCartForBase]);
 
   const onMouseMove = useCallback((e) => {
     if (dotRef.current) {
@@ -272,7 +291,7 @@ const OrderOnline = () => {
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, menuItems, searchQuery]);
 
-  // ADD TO CART WITH DYNAMIC LIVE STOCK VALIDATION
+  // Standard Add To Cart (Non-customized)
   const addToCart = (item) => {
     const liveItem = menuItems.find(m => m.id === item.id) || item;
     const maxStock = getItemStock(liveItem);
@@ -282,52 +301,58 @@ const OrderOnline = () => {
       return;
     }
 
-    const currentInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
-    if (currentInCart >= maxStock) {
-      alert(`Cannot add more. Admin has set stock limit of ${maxStock} unit(s) for ${item.name}.`);
+    const currentTotalInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
+    if (currentTotalInCart >= maxStock) {
+      alert(`Stock limit reached! Admin has set a total stock of ${maxStock} for ${item.name}.`);
       return;
     }
 
     setCart(prev => {
-      const exists = prev.find(c => c.id === item.id);
-      if (exists) {
-        return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
+      // Find non-customized variant
+      const existsIdx = prev.findIndex(c => c.id === item.id && !c.customization);
+      if (existsIdx >= 0) {
+        const copy = [...prev];
+        copy[existsIdx] = { ...copy[existsIdx], qty: copy[existsIdx].qty + 1 };
+        return copy;
       }
-      return [...prev, { ...item, qty: 1 }];
+      return [...prev, { ...item, baseId: item.id, qty: 1 }];
     });
   };
 
   const goToCustomize = (item) => {
     const liveItem = menuItems.find(m => m.id === item.id) || item;
-    if (getItemStock(liveItem) <= 0) {
-      alert(`Sorry, ${item.name} is currently out of stock!`);
+    const maxStock = getItemStock(liveItem);
+    const currentInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
+
+    if (maxStock <= 0 || currentInCart >= maxStock) {
+      alert(`Cannot customize more ${item.name}. Maximum available stock (${maxStock}) is already in your cart!`);
       return;
     }
     navigate(`/customize/${item.id}`, { state: { item } });
   };
 
-  // UPDATE QUANTITY (+ / -) WITH AUTO-REMOVE AT 0 AND STRICT STOCK LIMIT
+  // UPDATE QUANTITY (+ / -) WITH AUTO-DELETE AT 0 AND GLOBAL BASE-STOCK LIMIT
   const updateQty = (id, delta) => {
     setCart(prev => {
       const target = prev.find(c => c.id === id);
       if (!target) return prev;
 
-      // 1. If minus is clicked when qty is 1, completely remove from cart
+      // 1. If at quantity 1 and '-' is clicked, remove that exact customized line item
       if (delta < 0 && target.qty <= 1) {
         return prev.filter(c => c.id !== id);
       }
 
-      // 2. If plus is clicked, check against live Firestore stock
+      // 2. If '+' is clicked, check overall stock across all variations of this coffee
       if (delta > 0) {
         const liveItem = getLiveItemForCart(target);
-        const maxStock = liveItem ? getItemStock(liveItem) : getItemStock(target);
+        const maxStock = liveItem ? getItemStock(liveItem) : (target.stock || 99);
         const currentTotalInCart = getTotalQtyInCartForBase(
-          liveItem ? liveItem.id : target.id,
+          liveItem ? liveItem.id : (target.baseId || target.id),
           liveItem ? liveItem.name : target.name
         );
 
         if (currentTotalInCart + delta > maxStock) {
-          alert(`Stock limit reached! Only ${maxStock} unit(s) available for ${target.name}.`);
+          alert(`Stock limit reached! You cannot add more than ${maxStock} total units of ${target.name}.`);
           return prev;
         }
       }
@@ -341,7 +366,7 @@ const OrderOnline = () => {
   const totalItems = cart.reduce((sum, c) => sum + c.qty, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
 
-  // Check if any cart item became out-of-stock
+  // Check if any cart item became out of stock
   const cartHasOutOfStock = cart.some(c => {
     const live = getLiveItemForCart(c);
     return live ? getItemStock(live) <= 0 : false;
@@ -503,6 +528,7 @@ const OrderOnline = () => {
       amount: finalTotal,
       items: cart.map(item => ({
         id: item.id,
+        baseId: item.baseId || item.id,
         name: item.name,
         category: item.category,
         price: item.price,
@@ -514,6 +540,7 @@ const OrderOnline = () => {
       createdAt: serverTimestamp()
     });
 
+    // Real-time batch decrement of base menu items in Firestore
     try {
       const batch = writeBatch(db);
       cart.forEach(item => {
@@ -736,7 +763,7 @@ const OrderOnline = () => {
                 const isOutOfStock = stock <= 0;
                 const totalInCartForThis = getTotalQtyInCartForBase(item.id, item.name);
                 const isMaxReached = totalInCartForThis >= stock;
-                const inCart = cart.find(c => c.id === item.id);
+                const inCart = cart.find(c => c.id === item.id && !c.customization);
 
                 return (
                   <div
@@ -797,14 +824,14 @@ const OrderOnline = () => {
                           </button>
                         ) : inCart ? (
                           <div className="qty-control">
-                            <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
+                            <button className="qty-btn" onClick={() => updateQty(inCart.id, -1)}>−</button>
                             <span className="qty-num">{inCart.qty}</span>
                             <button 
                               className="qty-btn" 
-                              onClick={() => updateQty(item.id, 1)}
+                              onClick={() => updateQty(inCart.id, 1)}
                               disabled={isMaxReached}
                               style={isMaxReached ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
-                              title={isMaxReached ? `Max stock available: ${stock}` : 'Add more'}
+                              title={isMaxReached ? `Max total stock available: ${stock}` : 'Add more'}
                             >
                               +
                             </button>
@@ -878,7 +905,7 @@ const OrderOnline = () => {
                     const liveStock = live ? getItemStock(live) : getItemStock(item);
                     const itemIsOut = liveStock <= 0;
                     const totalBaseInCart = getTotalQtyInCartForBase(
-                      live ? live.id : item.id,
+                      live ? live.id : (item.baseId || item.id),
                       live ? live.name : item.name
                     );
                     const reachedMax = totalBaseInCart >= liveStock;
@@ -909,7 +936,7 @@ const OrderOnline = () => {
                           <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
                         </div>
                         <div className="qty-control">
-                          {/* Minus button: drops count and removes from cart if 1 */}
+                          {/* Decrements quantity or removes the row completely if 1 */}
                           <button 
                             className="qty-btn" 
                             onClick={() => updateQty(item.id, -1)} 
@@ -918,13 +945,13 @@ const OrderOnline = () => {
                             −
                           </button>
                           <span className="qty-num">{item.qty}</span>
-                          {/* Plus button: locked dynamically to stock limit set in Admin Panel */}
+                          {/* Increments quantity only if total stock across variations is not exceeded */}
                           <button
                             className="qty-btn"
                             onClick={() => updateQty(item.id, 1)}
                             disabled={itemIsOut || reachedMax}
                             style={(itemIsOut || reachedMax) ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
-                            title={reachedMax ? `Maximum stock is ${liveStock}` : 'Increase'}
+                            title={reachedMax ? `Maximum stock of ${liveStock} reached for this coffee` : 'Increase'}
                           >
                             +
                           </button>
