@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { coffeeMenu } from '../data/menuData';
 import { useFavorites } from '../hooks/useFavorites';
+import useVoiceAssistant from '../hooks/useVoiceAssistant';
 import VoiceAssistant from '../Components/VoiceAssistant';
 import './Menu.css';
 
-const allCategories = ["All", ...new Set(coffeeMenu.map((item) => item.category))];
+const allCategories = ['All', ...new Set(coffeeMenu.map((item) => item.category))];
 
-// Small reusable heart icon — outline by default, filled when active.
 const HeartIcon = () => (
   <svg viewBox="0 0 24 24">
     <path d="M12 21s-6.7-4.35-9.3-8.2C.8 9.9 1.6 6.4 4.6 5.1 6.8 4.15 9 5 12 7.5 15 5 17.2 4.15 19.4 5.1c3 1.3 3.8 4.8 1.9 7.7C18.7 16.65 12 21 12 21z" />
@@ -22,11 +22,6 @@ const VOICE_HINTS = [
 ];
 
 const Menu = () => {
-  // Read/write the category via the URL (?category=...) instead of only
-  // local state. This is what makes the Nav mega-menu links actually work:
-  // before, activeCategory always started at "All" no matter what was in
-  // the URL, so clicking a category link from Nav landed on /menu but
-  // never filtered anything.
   const [searchParams, setSearchParams] = useSearchParams();
 
   const getCategoryFromUrl = () => {
@@ -37,28 +32,14 @@ const Menu = () => {
   const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-
-  // ================= SEARCH (typed + voice) =================
   const [searchQuery, setSearchQuery] = useState('');
 
-  const dotRef  = useRef(null);
+  const dotRef = useRef(null);
   const ringRef = useRef(null);
 
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
 
-  // Keep activeCategory in sync with the URL. Needed because clicking a
-  // Nav link while ALREADY on /menu doesn't remount this component —
-  // React Router just updates the URL, so without this effect the page
-  // wouldn't notice the category changed.
-  useEffect(() => {
-    setActiveCategory(getCategoryFromUrl());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  // Clicking a filter button updates both local state AND the URL, so
-  // the URL always reflects what's shown (shareable/bookmarkable link,
-  // and keeps it consistent with how Nav's links work).
-  const handleCategoryClick = (cat) => {
+  const handleCategoryClick = useCallback((cat) => {
     setShowFavoritesOnly(false);
     setActiveCategory(cat);
     if (cat === 'All') {
@@ -66,20 +47,9 @@ const Menu = () => {
     } else {
       setSearchParams({ category: cat });
     }
-  };
+  }, [setSearchParams]);
 
-  const handleFavoritesToggle = () => {
-    setShowFavoritesOnly((prev) => !prev);
-  };
-
-  const handleHeartClick = (e, name) => {
-    e.stopPropagation(); // don't open the details modal
-    toggleFavorite(name);
-  };
-
-  // ================= VOICE COMMAND PARSER =================
-  // Returns a short string describing what happened (spoken back to
-  // the user + shown in the bubble), or null if nothing matched.
+  // VOICE COMMAND LOGIC
   const handleVoiceCommand = useCallback((text) => {
     const t = text.toLowerCase().trim();
 
@@ -95,7 +65,6 @@ const Menu = () => {
       return 'Showing all coffees';
     }
 
-    // "show <category>" / plain category name, e.g. "cold coffee"
     const matchedCategory = allCategories.find(
       (cat) => cat !== 'All' && t.includes(cat.toLowerCase())
     );
@@ -106,7 +75,6 @@ const Menu = () => {
       return `Showing ${matchedCategory}`;
     }
 
-    // "search X" / "find X"
     const searchMatch = t.match(/^(?:search|find)\s+(.+)/);
     if (searchMatch) {
       const query = searchMatch[1].trim();
@@ -115,7 +83,6 @@ const Menu = () => {
       return `Searching for "${query}"`;
     }
 
-    // direct item name spoken on its own — open its details modal
     const matchedItem = coffeeMenu.find((item) => t.includes(item.name.toLowerCase()));
     if (matchedItem) {
       setShowFavoritesOnly(false);
@@ -124,12 +91,46 @@ const Menu = () => {
       return `Here's ${matchedItem.name}`;
     }
 
-    // fallback: treat whatever was said as a search term
     setShowFavoritesOnly(false);
     setSearchQuery(t);
     return `Searching for "${t}"`;
+  }, [handleCategoryClick]);
+
+  // Search bar mic integration
+  const {
+    isListening: isSearchMicListening,
+    startListening: startSearchMic,
+    stopListening: stopSearchMic,
+    isSupported: isSpeechSupported,
+  } = useVoiceAssistant({
+    onCommand: (spokenText) => {
+      setShowFavoritesOnly(false);
+      setSearchQuery(spokenText);
+      handleVoiceCommand(spokenText);
+    },
+  });
+
+  const handleSearchMicClick = () => {
+    if (isSearchMicListening) {
+      stopSearchMic();
+    } else {
+      startSearchMic();
+    }
+  };
+
+  useEffect(() => {
+    setActiveCategory(getCategoryFromUrl());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
+
+  const handleFavoritesToggle = () => {
+    setShowFavoritesOnly((prev) => !prev);
+  };
+
+  const handleHeartClick = (e, name) => {
+    e.stopPropagation();
+    toggleFavorite(name);
+  };
 
   const filtered = showFavoritesOnly
     ? coffeeMenu.filter((item) => favorites.includes(item.name))
@@ -143,8 +144,14 @@ const Menu = () => {
       });
 
   const onMouseMove = useCallback((e) => {
-    if (dotRef.current)  { dotRef.current.style.left  = e.clientX + 'px'; dotRef.current.style.top  = e.clientY + 'px'; }
-    if (ringRef.current) { ringRef.current.style.left = e.clientX + 'px'; ringRef.current.style.top = e.clientY + 'px'; }
+    if (dotRef.current) {
+      dotRef.current.style.left = e.clientX + 'px';
+      dotRef.current.style.top = e.clientY + 'px';
+    }
+    if (ringRef.current) {
+      ringRef.current.style.left = e.clientX + 'px';
+      ringRef.current.style.top = e.clientY + 'px';
+    }
   }, []);
 
   const addHover = useCallback(() => { ringRef.current?.classList.add('hovered'); }, []);
@@ -153,41 +160,47 @@ const Menu = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    // Added .voice-fab / .voice-hint-btn / .search-clear-btn so the
-    // custom cursor ring reacts to the new controls the same way it
-    // already does for every other button on the page.
     const hoverTargets = document.querySelectorAll(
-      'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn'
+      'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn, .search-mic-btn'
     );
-    hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
+    hoverTargets.forEach((el) => {
+      el.addEventListener('mouseenter', addHover);
+      el.addEventListener('mouseleave', rmvHover);
+    });
 
-    // This observer re-runs whenever activeCategory/showFavoritesOnly/searchQuery
-    // changes, so switching filters re-observes the new set of .menu-card.fade-in
-    // elements and reveals them.
     const observer = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('visible');
+            observer.unobserve(e.target);
+          }
+        }),
       { threshold: 0.1 }
     );
-    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
 
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
-      hoverTargets.forEach(el => { el.removeEventListener('mouseenter', addHover); el.removeEventListener('mouseleave', rmvHover); });
+      hoverTargets.forEach((el) => {
+        el.removeEventListener('mouseenter', addHover);
+        el.removeEventListener('mouseleave', rmvHover);
+      });
       observer.disconnect();
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly, searchQuery]);
 
-  // close modal on Escape key
   useEffect(() => {
-    const onKeyDown = (e) => { if (e.key === 'Escape') setSelectedItem(null); };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedItem(null);
+    };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
   return (
     <div className="menu-page">
-
-      <div className="cursor-dot"  ref={dotRef}  />
+      <div className="cursor-dot" ref={dotRef} />
       <div className="cursor-ring" ref={ringRef} />
 
       <section className="menu-hero">
@@ -211,25 +224,55 @@ const Menu = () => {
 
       <section className="menu-section">
         <div className="menu-container">
-
           <div className="section-header fade-in">
             <p className="section-tag">Browse</p>
             <h2>Explore All <em>Coffees</em></h2>
           </div>
 
-          {/* Type-to-search bar — voice search fills this same state,
-              so typed and spoken search behave identically. */}
+          {/* Search bar with Mic button */}
           <div className="search-bar-wrap fade-in">
             <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Search coffees… or tap the mic"
+              placeholder={isSearchMicListening ? 'Listening... Speak now' : 'Search coffees… or tap the mic'}
               value={searchQuery}
-              onChange={(e) => { setShowFavoritesOnly(false); setSearchQuery(e.target.value); }}
+              onChange={(e) => {
+                setShowFavoritesOnly(false);
+                setSearchQuery(e.target.value);
+              }}
             />
+
+            {isSpeechSupported && (
+              <button
+                type="button"
+                className={`search-mic-btn ${isSearchMicListening ? 'active-listening' : ''}`}
+                onClick={handleSearchMicClick}
+                title={isSearchMicListening ? 'Stop listening' : 'Search by voice'}
+                aria-label="Voice Search"
+                style={{
+                  background: isSearchMicListening ? '#d4a373' : 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '1.1rem',
+                  padding: '0 8px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {isSearchMicListening ? '⏹️' : '🎙️'}
+              </button>
+            )}
+
             {searchQuery && (
-              <button className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
+              <button
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+              >
                 ✕
               </button>
             )}
@@ -240,7 +283,10 @@ const Menu = () => {
               <button
                 key={cat}
                 className={`filter-btn ${!showFavoritesOnly && activeCategory === cat ? 'active' : ''}`}
-                onClick={() => { setSearchQuery(''); handleCategoryClick(cat); }}
+                onClick={() => {
+                  setSearchQuery('');
+                  handleCategoryClick(cat);
+                }}
               >
                 <span>{cat}</span>
               </button>
@@ -301,7 +347,6 @@ const Menu = () => {
               ))}
             </div>
           )}
-
         </div>
       </section>
 
@@ -349,7 +394,6 @@ const Menu = () => {
       )}
 
       <VoiceAssistant onCommand={handleVoiceCommand} hints={VOICE_HINTS} />
-
     </div>
   );
 };
