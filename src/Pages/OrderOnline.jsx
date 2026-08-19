@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  onSnapshot,
+  doc,
+  updateDoc,
+  increment,
+  writeBatch
+} from 'firebase/firestore';
 import useRazorpay from '../hooks/useRazorpay';
 import { auth, db } from '../firebase';
-import { coffeeMenu } from '../data/menuData'; // fallback only, used until Firestore 'menu' is seeded
+import { coffeeMenu } from '../data/menuData'; // fallback
 import { generateBillPDF } from '../utils/generateBill';
 import VoiceAssistant from '../Components/VoiceAssistant';
 import './OrderOnline.css';
@@ -14,10 +23,6 @@ const paymentMethods = [
   { id: 'cod',       name: 'Cash on Delivery',               icon: '💵' },
 ];
 
-// ── Token redemption tiers ──
-// Checked highest-first so a user sitting on e.g. 1600 tokens gets
-// offered the 1500-token/35%-off tier (the best one they can afford),
-// not the 500-token tier.
 const TOKEN_TIERS = [
   { min: 2000, cost: 2000, percent: 100, label: 'Free Coffee (2000 tokens)' },
   { min: 1500, cost: 1500, percent: 35,  label: '35% Off (1500 tokens)' },
@@ -25,18 +30,9 @@ const TOKEN_TIERS = [
   { min: 500,  cost: 500,  percent: 10,  label: '10% Off (500 tokens)' },
 ];
 
-// Key used to hand off a customized item from CustomizeCoffee.jsx back
-// into this page's cart (see the pickup effect near the top of the
-// component). Kept as a constant so both files can stay in sync.
 const PENDING_CART_KEY = 'brewhaven_pending_cart_item';
-
-// Key used to hand off a BATCH of items from Wishlist.jsx (via the
-// "Add to Cart" / "Add All to Cart" buttons there) into this page's
-// cart. Same idea as PENDING_CART_KEY above but holds an array, since
-// more than one favorite can be queued up at once.
 const PENDING_WISHLIST_CART_KEY = 'brewhaven_pending_wishlist_cart_items';
 
-// Voice command examples shown in the "?" hint popup.
 const VOICE_HINTS = [
   'Add cappuccino to cart',
   'Remove latte',
@@ -47,8 +43,6 @@ const VOICE_HINTS = [
   'Checkout',
 ];
 
-// Minimal inline theme so this works even without touching OrderOnline.css.
-// Colors match the same palette used across Nav.css / Profile.css.
 const rewardStyles = {
   wrap: {
     marginTop: '1.2rem',
@@ -101,23 +95,10 @@ const OrderOnline = () => {
   const [selectedPayment, setSelectedPayment] = useState('razorpay');
   const [user] = useAuthState(auth);
 
-  // ================= SEARCH (typed + voice) =================
   const [searchQuery, setSearchQuery] = useState('');
-
-  // FIX: if the payment succeeded but we could NOT save the order to
-  // Firestore, we show a different, honest state instead of a fake
-  // "Order Placed" success — the customer already paid, so they need
-  // their payment ID to get this manually resolved, not a lie.
   const [saveFailed, setSaveFailed] = useState(false);
-
-  // Holds the order data used to generate the downloadable bill.
-  // Built locally (not re-fetched from Firestore) so the "Download Bill"
-  // button works even in the saveFailed case, where nothing was saved.
   const [placedOrder, setPlacedOrder] = useState(null);
 
-  // ================= REWARDS: wallet + tokens =================
-  // Live-subscribed so a balance change elsewhere (e.g. a referral
-  // bonus landing while this tab is open) reflects immediately.
   const [wallet, setWallet] = useState(0);
   const [tokens, setTokens] = useState(0);
   const [useTokens, setUseTokens] = useState(false);
@@ -138,9 +119,9 @@ const OrderOnline = () => {
     return () => unsub();
   }, [user]);
 
-  // ================= MENU (live from Firestore) =================
+  // ================= MENU (LIVE FROM FIRESTORE) =================
   const [menuItems, setMenuItems] = useState(
-    coffeeMenu.map((item, index) => ({ id: String(index + 1), ...item }))
+    coffeeMenu.map((item, index) => ({ id: String(index + 1), stock: 10, ...item }))
   );
 
   useEffect(() => {
@@ -150,7 +131,6 @@ const OrderOnline = () => {
         if (!snap.empty) {
           setMenuItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
-        // if empty, keep the static fallback already in state
       },
       (err) => console.error('Menu listener error:', err)
     );
@@ -164,15 +144,12 @@ const OrderOnline = () => {
   });
 
   const [paymentDetails, setPaymentDetails] = useState(null);
-
   const { initiatePayment, isProcessing, clearError } = useRazorpay();
 
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
-  // Merges a batch of incoming items into the current cart — if an item
-  // with the same id already exists, its qty is bumped instead of adding
-  // a duplicate row. Used by both pickup effects below.
+  // Cart Helper
   const mergeIntoCart = (prevCart, incomingItems) => {
     let next = [...prevCart];
     incomingItems.forEach((item) => {
@@ -186,22 +163,8 @@ const OrderOnline = () => {
     return next;
   };
 
-  // ================= PICK UP A CUSTOMIZED ITEM =================
-  // CustomizeCoffee.jsx stages one finished item in localStorage, then
-  // navigates back here. On mount we grab it, drop it straight into the
-  // cart, clear the staging key, and pop the cart open so the person
-  // sees it landed. Runs once — customized items get their own unique
-  // id (see CustomizeCoffee.jsx), so they never merge with a plain
-  // "Add to Cart" entry of the same base coffee.
-  //
-  // ================= PICK UP WISHLIST → CART ITEMS =================
-  // Wishlist.jsx queues one or more favorited items into
-  // PENDING_WISHLIST_CART_KEY (as an array) before navigating here, via
-  // its "Add to Cart" / "Add All to Cart" buttons. Same pickup-on-mount
-  // pattern as above, just for a batch instead of a single item.
   useEffect(() => {
     let gotSomething = false;
-
     try {
       const pending = localStorage.getItem(PENDING_CART_KEY);
       if (pending) {
@@ -231,7 +194,6 @@ const OrderOnline = () => {
     }
 
     if (gotSomething) setCartOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onMouseMove = useCallback((e) => {
@@ -251,9 +213,6 @@ const OrderOnline = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    // Added .voice-fab / .voice-hint-btn / .search-clear-btn so the
-    // custom cursor ring reacts to the new controls the same way it
-    // already does for every other button on the page.
     const hoverTargets = document.querySelectorAll(
       'button, a, .order-card, .filter-btn, .payment-option, .voice-fab, .voice-hint-btn, .search-clear-btn'
     );
@@ -284,39 +243,75 @@ const OrderOnline = () => {
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, menuItems, searchQuery]);
 
+  // Stock check helper
+  const getItemStock = (item) => {
+    const s = Number(item?.stock);
+    return Number.isFinite(s) ? Math.floor(s) : 0;
+  };
+
   const addToCart = (item) => {
+    const currentStock = getItemStock(item);
+    if (currentStock <= 0) {
+      alert(`Sorry, ${item.name} is currently out of stock!`);
+      return;
+    }
+
     setCart(prev => {
       const exists = prev.find(c => c.id === item.id);
-      if (exists) return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
+      if (exists) {
+        if (exists.qty >= currentStock) {
+          alert(`Only ${currentStock} units available for ${item.name}`);
+          return prev;
+        }
+        return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
+      }
       return [...prev, { ...item, qty: 1 }];
     });
   };
 
   const goToCustomize = (item) => {
+    if (getItemStock(item) <= 0) {
+      alert(`Sorry, ${item.name} is currently out of stock!`);
+      return;
+    }
     navigate(`/customize/${item.id}`, { state: { item } });
   };
 
   const updateQty = (id, delta) => {
-    setCart(prev =>
-      prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c)
-        .filter(c => c.qty > 0)
-    );
+    setCart(prev => {
+      const target = prev.find(c => c.id === id);
+      if (!target) return prev;
+
+      // Check against live Firestore stock
+      const liveItem = menuItems.find(m => m.id === id);
+      const currentStock = liveItem ? getItemStock(liveItem) : (target.stock ?? 999);
+
+      if (delta > 0 && target.qty + delta > currentStock) {
+        alert(`Cannot add more. Max stock available: ${currentStock}`);
+        return prev;
+      }
+
+      return prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c)
+        .filter(c => c.qty > 0);
+    });
   };
 
   const totalItems = cart.reduce((sum, c) => sum + c.qty, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
 
-  // ── Reward math ──
-  // Best tier the user can currently afford with their token balance.
+  // Check if any cart item became out-of-stock in real-time
+  const cartHasOutOfStock = cart.some(c => {
+    const live = menuItems.find(m => m.id === c.id);
+    return live && getItemStock(live) <= 0;
+  });
+
   const bestTier = TOKEN_TIERS.find(t => tokens >= t.min) || null;
   const tokenDiscountAmount = (useTokens && bestTier)
     ? Math.round((totalPrice * bestTier.percent) / 100)
     : 0;
   const afterTokenDiscount = Math.max(0, totalPrice - tokenDiscountAmount);
-  // Wallet always auto-applies (up to whatever's left to pay) — no toggle needed.
   const walletApplied = Math.min(wallet, afterTokenDiscount);
   const finalTotal = Math.max(0, afterTokenDiscount - walletApplied);
-  // 5 tokens earned per coffee (i.e. per unit quantity across the whole cart).
   const tokensEarned = totalItems * 5;
 
   const filtered = menuItems.filter((i) => {
@@ -328,21 +323,14 @@ const OrderOnline = () => {
     return inCategory && inSearch;
   });
 
-  // ================= VOICE COMMAND PARSER =================
-  // Returns a short string describing what happened (spoken back to
-  // the user + shown in the bubble), or null if nothing matched.
-  // Runs against `menuItems`/`cart`/etc. at call time via refs so it
-  // always sees current state without having to re-bind the recognizer.
+  // VOICE PARSER
   const stateRef = useRef({});
-  stateRef.current = {
-    menuItems, cart, allCategories, bestTier,
-  };
+  stateRef.current = { menuItems, cart, allCategories, bestTier };
 
   const handleVoiceCommand = useCallback((text) => {
     const t = text.toLowerCase().trim();
     const { menuItems: items, cart: currentCart, allCategories: cats, bestTier: tier } = stateRef.current;
 
-    // ── cart open/close ──
     if (t.includes('open cart') || t.includes('show cart') || t.includes('view cart')) {
       setCartOpen(true);
       return 'Opening your cart';
@@ -352,41 +340,37 @@ const OrderOnline = () => {
       return 'Closing cart';
     }
 
-    // ── payment method ──
     if (t.includes('cash on delivery') || t.includes(' cod') || t === 'cod') {
       setSelectedPayment('cod');
       return 'Payment method set to Cash on Delivery';
     }
-    if (t.includes('razorpay') || t.includes('upi') || t.includes('pay by card') || t.includes('pay with card')) {
+    if (t.includes('razorpay') || t.includes('upi') || t.includes('pay by card')) {
       setSelectedPayment('razorpay');
       return 'Payment method set to Razorpay';
     }
 
-    // ── tokens ──
-    if (t.includes('use token') || t.includes('apply token') || t.includes('redeem token') || t.includes('use my token')) {
+    if (t.includes('use token') || t.includes('apply token') || t.includes('redeem token')) {
       if (tier) {
         setUseTokens(true);
         return `Applying your tokens — ${tier.label}`;
       }
       return "You don't have enough tokens for a discount yet";
     }
-    if (t.includes("don't use token") || t.includes('remove token') || t.includes('stop using token')) {
+    if (t.includes("don't use token") || t.includes('remove token')) {
       setUseTokens(false);
       return 'Tokens removed from this order';
     }
 
-    // ── checkout ──
-    if (t.includes('checkout') || t.includes('place order') || t.includes('proceed to pay')) {
+    if (t.includes('checkout') || t.includes('place order')) {
       if (currentCart.length === 0) return 'Your cart is empty — add something first';
       setCartOpen(true);
       return 'Opening checkout — please fill in your delivery details';
     }
 
-    // ── remove item: "remove <name>" / "delete <name>" ──
     const removeMatch = t.match(/^(?:remove|delete)\s+(.+?)(?:\s+from\s+cart)?$/);
     if (removeMatch) {
       const name = removeMatch[1].trim();
-      const match = currentCart.find(c => c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase()));
+      const match = currentCart.find(c => c.name.toLowerCase().includes(name));
       if (match) {
         updateQty(match.id, -match.qty);
         return `Removed ${match.name} from your cart`;
@@ -394,16 +378,19 @@ const OrderOnline = () => {
       return `Couldn't find "${name}" in your cart`;
     }
 
-    // ── add item: "add <name> to cart" / "order <name>" / "i want <name>" ──
     const addMatch =
       t.match(/^add\s+(.+?)(?:\s+to\s+(?:my\s+)?cart)?$/) ||
       t.match(/^order\s+(?:a\s+|an\s+)?(.+)/) ||
       t.match(/^i want\s+(?:a\s+|an\s+)?(.+)/) ||
       t.match(/^get me\s+(?:a\s+|an\s+)?(.+)/);
+
     if (addMatch) {
       const name = addMatch[1].trim();
-      const match = items.find(m => m.name.toLowerCase().includes(name) || name.includes(m.name.toLowerCase()));
+      const match = items.find(m => m.name.toLowerCase().includes(name));
       if (match) {
+        if (getItemStock(match) <= 0) {
+          return `Sorry, ${match.name} is currently out of stock.`;
+        }
         addToCart(match);
         setCartOpen(true);
         return `Added ${match.name} to your cart`;
@@ -411,7 +398,6 @@ const OrderOnline = () => {
       return `Couldn't find "${name}" on the menu`;
     }
 
-    // ── search / category filter: "search X" / "find X" / "show X" ──
     const searchMatch = t.match(/^(?:search|find|show)\s+(.+)/);
     if (searchMatch) {
       const query = searchMatch[1].trim();
@@ -430,23 +416,20 @@ const OrderOnline = () => {
       return `Searching for "${query}"`;
     }
 
-    // ── plain item name spoken alone → add it straight to cart ──
     const directItem = items.find(m => t.includes(m.name.toLowerCase()));
     if (directItem) {
+      if (getItemStock(directItem) <= 0) {
+        return `Sorry, ${directItem.name} is out of stock.`;
+      }
       addToCart(directItem);
       setCartOpen(true);
       return `Added ${directItem.name} to your cart`;
     }
 
-    // fallback: treat it as a search term
     setSearchQuery(t);
     return `Searching for "${t}"`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Builds the plain-object snapshot used to render the downloadable bill.
-  // Uses local state (cart, totals) rather than re-reading Firestore, so
-  // it works even when the Firestore write itself failed (saveFailed case).
   const buildOrderForBill = (orderId, method, paymentId = '') => ({
     id: orderId,
     items: cart.map(item => ({
@@ -463,10 +446,7 @@ const OrderOnline = () => {
     createdAt: new Date(),
   });
 
-  // FIX: previously this caught its own errors and did nothing further,
-  // so the caller had no way to know the write failed. Now it re-throws,
-  // so handleOrder can react properly instead of blindly showing success.
-  // Also returns the new Firestore doc ID so the bill can reference it.
+  // Save Order + Auto-Decrement Firestore Menu Stock
   const persistOrder = async ({ method, paymentId = '' }) => {
     const docRef = await addDoc(collection(db, 'orders'), {
       userId: user?.uid || null,
@@ -477,20 +457,11 @@ const OrderOnline = () => {
       note: formData.note,
       paymentMethod: method,
       paymentId,
-      // Reward breakdown kept on the order doc so Profile.jsx / Adminpanel.jsx
-      // can show exactly how much was wallet vs token vs actually paid.
       subtotal: totalPrice,
       tokenDiscount: tokenDiscountAmount,
       walletUsed: walletApplied,
       tokensEarned,
       amount: finalTotal,
-      // FIX: added `img` so the order history (Profile.jsx) can show a
-      // picture of what was ordered — previously only id/name/category/
-      // price/qty were stored, so every order card fell back to a
-      // placeholder image with no way to recover the real one.
-      // Also carries `customization` (size/milk/roast/shot/sugar/straw)
-      // when the item came through the Customize page, so past orders
-      // remember exactly how it was made.
       items: cart.map(item => ({
         id: item.id,
         name: item.name,
@@ -504,8 +475,24 @@ const OrderOnline = () => {
       createdAt: serverTimestamp()
     });
 
-    // Settle the user's wallet + tokens for this order: deduct whatever
-    // wallet/tokens were spent, credit the tokens earned from this purchase.
+    // Realtime Stock Decrement in Firestore
+    try {
+      const batch = writeBatch(db);
+      cart.forEach(item => {
+        // Base menu doc update
+        if (item.id) {
+          const itemRef = doc(db, 'menu', item.id);
+          batch.update(itemRef, {
+            stock: increment(-Number(item.qty || 1))
+          });
+        }
+      });
+      await batch.commit();
+    } catch (stockErr) {
+      console.warn('Could not auto-decrement stock:', stockErr);
+    }
+
+    // Settle Rewards
     if (user) {
       const tierTokensSpent = (useTokens && bestTier) ? bestTier.cost : 0;
       try {
@@ -514,8 +501,6 @@ const OrderOnline = () => {
           tokens: increment(tokensEarned - tierTokensSpent),
         });
       } catch (err) {
-        // Order itself is already saved at this point — don't fail the
-        // whole checkout over a rewards-ledger update issue, just log it.
         console.error('Wallet/token settlement failed:', err);
       }
     }
@@ -527,8 +512,11 @@ const OrderOnline = () => {
     e.preventDefault();
     if (cart.length === 0) return;
 
-    // Cash on Delivery — no money has changed hands yet, but we still
-    // want to know if the save failed instead of silently losing the order.
+    if (cartHasOutOfStock) {
+      alert('One or more items in your cart are now Out of Stock. Please remove them before proceeding.');
+      return;
+    }
+
     if (selectedPayment === 'cod') {
       (async () => {
         try {
@@ -540,16 +528,13 @@ const OrderOnline = () => {
           setCartOpen(false);
         } catch (error) {
           console.error('Could not save order to Firestore:', error);
-          alert('Something went wrong placing your order. Please try again, or contact us if the problem continues.');
+          alert('Something went wrong placing your order. Please try again.');
         }
       })();
       return;
     }
 
-    // Razorpay Payment
     if (selectedPayment === 'razorpay') {
-      // Wallet/token discounts already cover the whole order — nothing
-      // left to charge, so skip the payment gateway entirely.
       if (finalTotal <= 0) {
         (async () => {
           try {
@@ -561,7 +546,7 @@ const OrderOnline = () => {
             setCartOpen(false);
           } catch (error) {
             console.error('Could not save order to Firestore:', error);
-            alert('Something went wrong placing your order. Please try again, or contact us if the problem continues.');
+            alert('Something went wrong placing your order. Please try again.');
           }
         })();
         return;
@@ -588,13 +573,7 @@ const OrderOnline = () => {
             setOrderPlaced(true);
             setCartOpen(false);
           } catch (error) {
-            // CRITICAL CASE: the customer's money was already taken by
-            // Razorpay, but we could not record the order. Do NOT show a
-            // fake success message. Show the payment ID so this can be
-            // manually reconciled instead of silently lost. The bill can
-            // still be generated from local state (orderId is null here
-            // since nothing was actually saved to Firestore).
-            console.error('Payment succeeded but order was NOT saved to Firestore:', error);
+            console.error('Payment succeeded but order failed to save:', error);
             setSaveFailed(true);
             setPaymentDetails({
               method: 'Razorpay',
@@ -674,8 +653,6 @@ const OrderOnline = () => {
             <h2>Choose Your <em>Brew</em></h2>
           </div>
 
-          {/* Type-to-search bar — voice search fills this same state,
-              so typed and spoken search behave identically. */}
           <div className="search-bar-wrap fade-in">
             <span className="search-icon">🔍</span>
             <input
@@ -713,24 +690,68 @@ const OrderOnline = () => {
           ) : (
             <div className="order-grid">
               {filtered.map((item, index) => {
+                const stock = getItemStock(item);
+                const isOutOfStock = stock <= 0;
                 const inCart = cart.find(c => c.id === item.id);
+
                 return (
                   <div
-                    className="order-card fade-in"
+                    className={`order-card fade-in ${isOutOfStock ? 'card-out-of-stock' : ''}`}
                     key={item.id}
-                    style={{ transitionDelay: `${(index % 8) * 0.07}s` }}
+                    style={{
+                      transitionDelay: `${(index % 8) * 0.07}s`,
+                      opacity: isOutOfStock ? 0.6 : 1,
+                      position: 'relative'
+                    }}
                   >
                     <div className="order-img-wrap">
                       <img src={item.img} alt={item.name} className="order-img" loading="lazy" />
                       <div className="card-overlay" />
                       <span className="card-category">{item.category}</span>
+                      
+                      {/* REAL-TIME OUT OF STOCK BADGE */}
+                      {isOutOfStock && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            background: 'rgba(224, 112, 96, 0.92)',
+                            color: '#140e0b',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            letterSpacing: '0.08em',
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: '999px',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                            zIndex: 2,
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          🚫 OUT OF STOCK
+                        </div>
+                      )}
                     </div>
                     <div className="order-info">
                       <h3>{item.name}</h3>
                       <p className="order-price">₹ {item.price}</p>
 
                       <div className="card-actions">
-                        {inCart ? (
+                        {isOutOfStock ? (
+                          <button
+                            className="add-btn"
+                            disabled
+                            style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#a89070',
+                              cursor: 'not-allowed',
+                              border: '1px solid rgba(201,149,108,0.15)'
+                            }}
+                          >
+                            <span>Unavailable</span>
+                          </button>
+                        ) : inCart ? (
                           <div className="qty-control">
                             <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
                             <span className="qty-num">{inCart.qty}</span>
@@ -742,7 +763,12 @@ const OrderOnline = () => {
                           </button>
                         )}
 
-                        <button className="customize-btn" onClick={() => goToCustomize(item)}>
+                        <button
+                          className="customize-btn"
+                          onClick={() => goToCustomize(item)}
+                          disabled={isOutOfStock}
+                          style={isOutOfStock ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        >
                           <span>🎨 Customize</span>
                         </button>
                       </div>
@@ -771,33 +797,69 @@ const OrderOnline = () => {
               </div>
             ) : (
               <>
+                {/* OUT OF STOCK ALERT IN CART */}
+                {cartHasOutOfStock && (
+                  <div
+                    style={{
+                      background: 'rgba(224, 112, 96, 0.15)',
+                      border: '1px solid #e07060',
+                      borderRadius: '8px',
+                      padding: '0.6rem 0.8rem',
+                      color: '#e07060',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      marginBottom: '1rem',
+                      textAlign: 'center'
+                    }}
+                  >
+                    ⚠️ Some items in your cart are Out of Stock. Please remove them to checkout.
+                  </div>
+                )}
+
                 <div className="cart-items">
-                  {cart.map(item => (
-                    <div className="cart-item" key={item.id}>
-                      <img src={item.img} alt={item.name} className="cart-item-img" />
-                      <div className="cart-item-info">
-                        <p className="cart-item-name">{item.name}</p>
-                        {item.customization && (
-                          <p className="cart-item-custom">
-                            {[
-                              item.customization.size,
-                              item.customization.milk,
-                              item.customization.shot,
-                              item.customization.sugar,
-                              item.customization.roast,
-                              item.customization.straw ? 'Extra Straw' : null,
-                            ].filter(Boolean).join(' · ')}
+                  {cart.map(item => {
+                    const live = menuItems.find(m => m.id === item.id);
+                    const itemIsOut = live && getItemStock(live) <= 0;
+
+                    return (
+                      <div
+                        className="cart-item"
+                        key={item.id}
+                        style={itemIsOut ? { border: '1px solid #e07060', background: 'rgba(224, 112, 96, 0.08)' } : {}}
+                      >
+                        <img src={item.img} alt={item.name} className="cart-item-img" />
+                        <div className="cart-item-info">
+                          <p className="cart-item-name">
+                            {item.name} {itemIsOut && <span style={{ color: '#e07060', fontSize: '0.72rem' }}>(OUT OF STOCK)</span>}
                           </p>
-                        )}
-                        <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
+                          {item.customization && (
+                            <p className="cart-item-custom">
+                              {[
+                                item.customization.size,
+                                item.customization.milk,
+                                item.customization.shot,
+                                item.customization.sugar,
+                                item.customization.roast,
+                                item.customization.straw ? 'Extra Straw' : null,
+                              ].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                          <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
+                        </div>
+                        <div className="qty-control">
+                          <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
+                          <span className="qty-num">{item.qty}</span>
+                          <button
+                            className="qty-btn"
+                            onClick={() => updateQty(item.id, 1)}
+                            disabled={itemIsOut}
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
-                      <div className="qty-control">
-                        <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
-                        <span className="qty-num">{item.qty}</span>
-                        <button className="qty-btn" onClick={() => updateQty(item.id, 1)}>+</button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="cart-total">
@@ -805,7 +867,7 @@ const OrderOnline = () => {
                   <span className="total-price">₹ {totalPrice}</span>
                 </div>
 
-                {/* ── Rewards: wallet auto-apply + token redemption ── */}
+                {/* Rewards */}
                 {user && (wallet > 0 || tokens > 0) && (
                   <div style={rewardStyles.wrap}>
                     <p className="section-tag" style={{ marginBottom: '0.8rem' }}>Your Rewards</p>
@@ -849,7 +911,7 @@ const OrderOnline = () => {
                   </div>
                 )}
 
-                {/* Payment Section */}
+                {/* Payment Options */}
                 <div className="payment-section">
                   <p className="section-tag" style={{ marginBottom: '1rem' }}>Select Payment Method</p>
                   <div className="payment-options">
@@ -929,9 +991,14 @@ const OrderOnline = () => {
                   <button
                     type="submit"
                     className={`primary-btn place-order-btn ${isProcessing ? 'processing' : ''}`}
-                    disabled={isProcessing}
+                    disabled={isProcessing || cartHasOutOfStock}
+                    style={cartHasOutOfStock ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                   >
-                    {isProcessing ? 'Processing...' : `Pay ₹ ${finalTotal}`}
+                    {isProcessing
+                      ? 'Processing...'
+                      : cartHasOutOfStock
+                        ? 'Remove Out of Stock Items'
+                        : `Pay ₹ ${finalTotal}`}
                   </button>
                 </form>
               </>
@@ -940,7 +1007,7 @@ const OrderOnline = () => {
         </div>
       )}
 
-      {/* Success / Save-Failed Modal */}
+      {/* Success Modal */}
       {orderPlaced && (
         <div className="success-overlay" onClick={resetOrder}>
           <div className="success-modal" onClick={e => e.stopPropagation()}>
@@ -951,8 +1018,7 @@ const OrderOnline = () => {
                 <p>
                   Your payment of <strong>₹ {paymentDetails?.amount}</strong> went through,
                   but we had a technical problem saving your order details.<br /><br />
-                  <strong>Please save this Payment ID and contact us directly</strong> so we can
-                  confirm your order manually:<br />
+                  <strong>Please save this Payment ID and contact us directly</strong>:<br />
                   <strong>Payment ID: {paymentDetails?.paymentId}</strong>
                 </p>
                 <button className="primary-btn" onClick={downloadBill} style={{ marginBottom: '0.6rem' }}>
