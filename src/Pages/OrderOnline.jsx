@@ -85,6 +85,15 @@ const rewardStyles = {
   },
 };
 
+// Generates a unique signature for customized options
+const getCustomizationKey = (customization) => {
+  if (!customization) return 'plain';
+  return Object.keys(customization)
+    .sort()
+    .map(key => `${key}:${customization[key]}`)
+    .join('|');
+};
+
 const OrderOnline = () => {
   const navigate = useNavigate();
 
@@ -149,13 +158,13 @@ const OrderOnline = () => {
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
-  // Helper: Get sanitized numeric stock from menu item
+  // Helper: Get numeric stock
   const getItemStock = (item) => {
     const s = Number(item?.stock);
     return Number.isFinite(s) ? Math.floor(s) : 0;
   };
 
-  // Helper: Find base menu item from Firestore for any cart item
+  // Helper: Find base menu item from Firestore
   const getLiveItemForCart = useCallback((cartItem) => {
     return menuItems.find(m => 
       m.id === (cartItem.baseId || cartItem.id) || 
@@ -173,33 +182,53 @@ const OrderOnline = () => {
     }, 0);
   }, [cart]);
 
-  // ================= PICKUP EFFECT WITH MULTI-CUSTOMIZATION SUPPORT =================
+  // ================= PICKUP EFFECT: SUPPORTS MULTIPLE DIFFERENT CUSTOMIZATIONS =================
   useEffect(() => {
     let gotSomething = false;
 
-    // 1. Pick up Single Customized Item from Customize page
+    // 1. Pick up Customized Item from Customize page
     try {
       const pending = localStorage.getItem(PENDING_CART_KEY);
       if (pending) {
         const pendingItem = JSON.parse(pending);
+        const baseId = pendingItem.baseId || pendingItem.id;
         
         // Find live base item and check total stock limit
-        const live = menuItems.find(m => m.id === (pendingItem.baseId || pendingItem.id) || m.name === pendingItem.name);
+        const live = menuItems.find(m => m.id === baseId || m.name === pendingItem.name);
         const liveStock = live ? getItemStock(live) : 99;
-        const currentInCart = getTotalQtyInCartForBase(live?.id || pendingItem.id, pendingItem.name);
+        const currentInCart = getTotalQtyInCartForBase(live?.id || baseId, pendingItem.name);
 
         if (currentInCart + (pendingItem.qty || 1) <= liveStock) {
-          // Assign unique cartItemId so each customized coffee is a separate line item
-          const uniqueCustomItem = {
-            ...pendingItem,
-            baseId: pendingItem.baseId || pendingItem.id,
-            id: pendingItem.id.startsWith('custom_') ? pendingItem.id : `custom_${pendingItem.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            qty: pendingItem.qty || 1
-          };
-          setCart(prev => [...prev, uniqueCustomItem]);
+          const customKey = getCustomizationKey(pendingItem.customization);
+          
+          setCart(prev => {
+            // Check if exact same customization already exists
+            const existingIndex = prev.findIndex(c => 
+              (c.baseId === baseId || c.id === baseId) && 
+              getCustomizationKey(c.customization) === customKey
+            );
+
+            if (existingIndex >= 0) {
+              const updated = [...prev];
+              updated[existingIndex] = {
+                ...updated[existingIndex],
+                qty: updated[existingIndex].qty + (pendingItem.qty || 1)
+              };
+              return updated;
+            } else {
+              // If it's a new/different customization, add as a separate line item
+              const uniqueLineItem = {
+                ...pendingItem,
+                baseId: baseId,
+                id: `cart_${baseId}_${customKey}_${Date.now()}`,
+                qty: pendingItem.qty || 1
+              };
+              return [...prev, uniqueLineItem];
+            }
+          });
           gotSomething = true;
         } else {
-          alert(`Cannot add customized ${pendingItem.name}. Stock limit (${liveStock}) reached!`);
+          alert(`Cannot add customized ${pendingItem.name}. Total stock limit of ${liveStock} reached!`);
         }
       }
     } catch (err) {
@@ -222,11 +251,11 @@ const OrderOnline = () => {
               const inCartCount = next.reduce((tot, c) => (c.baseId === item.id || c.id === item.id ? tot + c.qty : tot), 0);
 
               if (inCartCount < maxStock) {
-                const idx = next.findIndex(c => c.id === item.id && !c.customization);
+                const idx = next.findIndex(c => (c.baseId === item.id || c.id === item.id) && !c.customization);
                 if (idx >= 0) {
                   next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
                 } else {
-                  next.push({ ...item, baseId: item.id, qty: 1 });
+                  next.push({ ...item, baseId: item.id, id: item.id, qty: 1 });
                 }
                 gotSomething = true;
               }
@@ -291,7 +320,7 @@ const OrderOnline = () => {
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, menuItems, searchQuery]);
 
-  // Standard Add To Cart (Non-customized)
+  // Standard Add To Cart (Regular / Uncustomized)
   const addToCart = (item) => {
     const liveItem = menuItems.find(m => m.id === item.id) || item;
     const maxStock = getItemStock(liveItem);
@@ -308,14 +337,13 @@ const OrderOnline = () => {
     }
 
     setCart(prev => {
-      // Find non-customized variant
-      const existsIdx = prev.findIndex(c => c.id === item.id && !c.customization);
-      if (existsIdx >= 0) {
+      const plainIdx = prev.findIndex(c => (c.baseId === item.id || c.id === item.id) && !c.customization);
+      if (plainIdx >= 0) {
         const copy = [...prev];
-        copy[existsIdx] = { ...copy[existsIdx], qty: copy[existsIdx].qty + 1 };
+        copy[plainIdx] = { ...copy[plainIdx], qty: copy[plainIdx].qty + 1 };
         return copy;
       }
-      return [...prev, { ...item, baseId: item.id, qty: 1 }];
+      return [...prev, { ...item, baseId: item.id, id: item.id, qty: 1 }];
     });
   };
 
@@ -325,19 +353,19 @@ const OrderOnline = () => {
     const currentInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
 
     if (maxStock <= 0 || currentInCart >= maxStock) {
-      alert(`Cannot customize more ${item.name}. Maximum available stock (${maxStock}) is already in your cart!`);
+      alert(`Cannot customize more ${item.name}. Total available stock (${maxStock}) is already in your cart!`);
       return;
     }
     navigate(`/customize/${item.id}`, { state: { item } });
   };
 
-  // UPDATE QUANTITY (+ / -) WITH AUTO-DELETE AT 0 AND GLOBAL BASE-STOCK LIMIT
+  // Update Quantity with Auto-Remove on 1 -> 0 and Total Stock Boundary Check
   const updateQty = (id, delta) => {
     setCart(prev => {
       const target = prev.find(c => c.id === id);
       if (!target) return prev;
 
-      // 1. If at quantity 1 and '-' is clicked, remove that exact customized line item
+      // 1. If at quantity 1 and '-' is clicked, remove that exact line item
       if (delta < 0 && target.qty <= 1) {
         return prev.filter(c => c.id !== id);
       }
@@ -352,7 +380,7 @@ const OrderOnline = () => {
         );
 
         if (currentTotalInCart + delta > maxStock) {
-          alert(`Stock limit reached! You cannot add more than ${maxStock} total units of ${target.name}.`);
+          alert(`Stock limit reached! Total available stock for ${target.name} is ${maxStock}.`);
           return prev;
         }
       }
@@ -540,7 +568,7 @@ const OrderOnline = () => {
       createdAt: serverTimestamp()
     });
 
-    // Real-time batch decrement of base menu items in Firestore
+    // Real-time decrement of base menu items in Firestore
     try {
       const batch = writeBatch(db);
       cart.forEach(item => {
@@ -763,7 +791,7 @@ const OrderOnline = () => {
                 const isOutOfStock = stock <= 0;
                 const totalInCartForThis = getTotalQtyInCartForBase(item.id, item.name);
                 const isMaxReached = totalInCartForThis >= stock;
-                const inCart = cart.find(c => c.id === item.id && !c.customization);
+                const plainInCart = cart.find(c => (c.baseId === item.id || c.id === item.id) && !c.customization);
 
                 return (
                   <div
@@ -822,13 +850,13 @@ const OrderOnline = () => {
                           >
                             <span>Unavailable</span>
                           </button>
-                        ) : inCart ? (
+                        ) : plainInCart ? (
                           <div className="qty-control">
-                            <button className="qty-btn" onClick={() => updateQty(inCart.id, -1)}>−</button>
-                            <span className="qty-num">{inCart.qty}</span>
+                            <button className="qty-btn" onClick={() => updateQty(plainInCart.id, -1)}>−</button>
+                            <span className="qty-num">{plainInCart.qty}</span>
                             <button 
                               className="qty-btn" 
-                              onClick={() => updateQty(inCart.id, 1)}
+                              onClick={() => updateQty(plainInCart.id, 1)}
                               disabled={isMaxReached}
                               style={isMaxReached ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
                               title={isMaxReached ? `Max total stock available: ${stock}` : 'Add more'}
@@ -951,7 +979,7 @@ const OrderOnline = () => {
                             onClick={() => updateQty(item.id, 1)}
                             disabled={itemIsOut || reachedMax}
                             style={(itemIsOut || reachedMax) ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
-                            title={reachedMax ? `Maximum stock of ${liveStock} reached for this coffee` : 'Increase'}
+                            title={reachedMax ? `Total stock of ${liveStock} reached for this coffee` : 'Increase'}
                           >
                             +
                           </button>
@@ -1057,7 +1085,7 @@ const OrderOnline = () => {
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                   
-                  {/* PHONE NUMBER: Only 10 digits allowed */}
+                  {/* PHONE NUMBER: 10 Digits Validation */}
                   <input
                     className="form-input"
                     type="tel"
