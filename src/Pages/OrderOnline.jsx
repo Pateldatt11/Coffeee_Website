@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import useRazorpay from '../hooks/useRazorpay';
 import { auth, db } from '../firebase';
-import { coffeeMenu } from '../data/menuData'; // fallback
+import { coffeeMenu } from '../data/menuData';
 import { generateBillPDF } from '../utils/generateBill';
 import VoiceAssistant from '../Components/VoiceAssistant';
 import './OrderOnline.css';
@@ -149,7 +149,36 @@ const OrderOnline = () => {
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
-  // Cart Helper
+  // Helper: Get sanitized numeric stock from menu item
+  const getItemStock = (item) => {
+    const s = Number(item?.stock);
+    return Number.isFinite(s) ? Math.floor(s) : 0;
+  };
+
+  // Helper: Find live menu item corresponding to any cart item (handles customized items too)
+  const getLiveItemForCart = useCallback((cartItem) => {
+    return menuItems.find(m => 
+      m.id === cartItem.id || 
+      (cartItem.baseId && m.id === cartItem.baseId) || 
+      m.name?.toLowerCase().trim() === cartItem.name?.toLowerCase().trim()
+    );
+  }, [menuItems]);
+
+  // Helper: Get total quantity of a base coffee currently inside cart
+  const getTotalQtyInCartForBase = useCallback((baseItemId, baseItemName) => {
+    return cart.reduce((total, c) => {
+      if (
+        c.id === baseItemId || 
+        c.baseId === baseItemId || 
+        c.name?.toLowerCase().trim() === baseItemName?.toLowerCase().trim()
+      ) {
+        return total + (Number(c.qty) || 0);
+      }
+      return total;
+    }, 0);
+  }, [cart]);
+
+  // Helper: Cart merge on pickup
   const mergeIntoCart = (prevCart, incomingItems) => {
     let next = [...prevCart];
     incomingItems.forEach((item) => {
@@ -243,26 +272,25 @@ const OrderOnline = () => {
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, menuItems, searchQuery]);
 
-  // Stock check helper
-  const getItemStock = (item) => {
-    const s = Number(item?.stock);
-    return Number.isFinite(s) ? Math.floor(s) : 0;
-  };
-
+  // ADD TO CART WITH DYNAMIC LIVE STOCK VALIDATION
   const addToCart = (item) => {
-    const currentStock = getItemStock(item);
-    if (currentStock <= 0) {
+    const liveItem = menuItems.find(m => m.id === item.id) || item;
+    const maxStock = getItemStock(liveItem);
+
+    if (maxStock <= 0) {
       alert(`Sorry, ${item.name} is currently out of stock!`);
+      return;
+    }
+
+    const currentInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
+    if (currentInCart >= maxStock) {
+      alert(`Cannot add more. Admin has set stock limit of ${maxStock} unit(s) for ${item.name}.`);
       return;
     }
 
     setCart(prev => {
       const exists = prev.find(c => c.id === item.id);
       if (exists) {
-        if (exists.qty >= currentStock) {
-          alert(`Only ${currentStock} units available for ${item.name}`);
-          return prev;
-        }
         return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
       }
       return [...prev, { ...item, qty: 1 }];
@@ -270,28 +298,42 @@ const OrderOnline = () => {
   };
 
   const goToCustomize = (item) => {
-    if (getItemStock(item) <= 0) {
+    const liveItem = menuItems.find(m => m.id === item.id) || item;
+    if (getItemStock(liveItem) <= 0) {
       alert(`Sorry, ${item.name} is currently out of stock!`);
       return;
     }
     navigate(`/customize/${item.id}`, { state: { item } });
   };
 
+  // UPDATE QUANTITY (+ / -) WITH AUTO-REMOVE AT 0 AND STRICT STOCK LIMIT
   const updateQty = (id, delta) => {
     setCart(prev => {
       const target = prev.find(c => c.id === id);
       if (!target) return prev;
 
-      // Check against live Firestore stock
-      const liveItem = menuItems.find(m => m.id === id);
-      const currentStock = liveItem ? getItemStock(liveItem) : (target.stock ?? 999);
-
-      if (delta > 0 && target.qty + delta > currentStock) {
-        alert(`Cannot add more. Max stock available: ${currentStock}`);
-        return prev;
+      // 1. If minus is clicked when qty is 1, completely remove from cart
+      if (delta < 0 && target.qty <= 1) {
+        return prev.filter(c => c.id !== id);
       }
 
-      return prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c)
+      // 2. If plus is clicked, check against live Firestore stock
+      if (delta > 0) {
+        const liveItem = getLiveItemForCart(target);
+        const maxStock = liveItem ? getItemStock(liveItem) : getItemStock(target);
+        const currentTotalInCart = getTotalQtyInCartForBase(
+          liveItem ? liveItem.id : target.id,
+          liveItem ? liveItem.name : target.name
+        );
+
+        if (currentTotalInCart + delta > maxStock) {
+          alert(`Stock limit reached! Only ${maxStock} unit(s) available for ${target.name}.`);
+          return prev;
+        }
+      }
+
+      return prev
+        .map(c => (c.id === id ? { ...c, qty: c.qty + delta } : c))
         .filter(c => c.qty > 0);
     });
   };
@@ -299,10 +341,10 @@ const OrderOnline = () => {
   const totalItems = cart.reduce((sum, c) => sum + c.qty, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
 
-  // Check if any cart item became out-of-stock in real-time
+  // Check if any cart item became out-of-stock
   const cartHasOutOfStock = cart.some(c => {
-    const live = menuItems.find(m => m.id === c.id);
-    return live && getItemStock(live) <= 0;
+    const live = getLiveItemForCart(c);
+    return live ? getItemStock(live) <= 0 : false;
   });
 
   const bestTier = TOKEN_TIERS.find(t => tokens >= t.min) || null;
@@ -323,7 +365,7 @@ const OrderOnline = () => {
     return inCategory && inSearch;
   });
 
-  // VOICE PARSER
+  // VOICE ASSISTANT PARSER
   const stateRef = useRef({});
   stateRef.current = { menuItems, cart, allCategories, bestTier };
 
@@ -388,9 +430,8 @@ const OrderOnline = () => {
       const name = addMatch[1].trim();
       const match = items.find(m => m.name.toLowerCase().includes(name));
       if (match) {
-        if (getItemStock(match) <= 0) {
-          return `Sorry, ${match.name} is currently out of stock.`;
-        }
+        const stock = getItemStock(match);
+        if (stock <= 0) return `Sorry, ${match.name} is currently out of stock.`;
         addToCart(match);
         setCartOpen(true);
         return `Added ${match.name} to your cart`;
@@ -418,9 +459,8 @@ const OrderOnline = () => {
 
     const directItem = items.find(m => t.includes(m.name.toLowerCase()));
     if (directItem) {
-      if (getItemStock(directItem) <= 0) {
-        return `Sorry, ${directItem.name} is out of stock.`;
-      }
+      const stock = getItemStock(directItem);
+      if (stock <= 0) return `Sorry, ${directItem.name} is out of stock.`;
       addToCart(directItem);
       setCartOpen(true);
       return `Added ${directItem.name} to your cart`;
@@ -428,7 +468,7 @@ const OrderOnline = () => {
 
     setSearchQuery(t);
     return `Searching for "${t}"`;
-  }, []);
+  }, [getTotalQtyInCartForBase]);
 
   const buildOrderForBill = (orderId, method, paymentId = '') => ({
     id: orderId,
@@ -446,7 +486,6 @@ const OrderOnline = () => {
     createdAt: new Date(),
   });
 
-  // Save Order + Auto-Decrement Firestore Menu Stock
   const persistOrder = async ({ method, paymentId = '' }) => {
     const docRef = await addDoc(collection(db, 'orders'), {
       userId: user?.uid || null,
@@ -475,13 +514,12 @@ const OrderOnline = () => {
       createdAt: serverTimestamp()
     });
 
-    // Realtime Stock Decrement in Firestore
     try {
       const batch = writeBatch(db);
       cart.forEach(item => {
-        // Base menu doc update
-        if (item.id) {
-          const itemRef = doc(db, 'menu', item.id);
+        const live = getLiveItemForCart(item);
+        if (live && live.id) {
+          const itemRef = doc(db, 'menu', live.id);
           batch.update(itemRef, {
             stock: increment(-Number(item.qty || 1))
           });
@@ -492,7 +530,6 @@ const OrderOnline = () => {
       console.warn('Could not auto-decrement stock:', stockErr);
     }
 
-    // Settle Rewards
     if (user) {
       const tierTokensSpent = (useTokens && bestTier) ? bestTier.cost : 0;
       try {
@@ -512,8 +549,13 @@ const OrderOnline = () => {
     e.preventDefault();
     if (cart.length === 0) return;
 
+    if (formData.phone.trim().length !== 10) {
+      alert('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
     if (cartHasOutOfStock) {
-      alert('One or more items in your cart are now Out of Stock. Please remove them before proceeding.');
+      alert('One or more items in your cart are Out of Stock. Please remove them before proceeding.');
       return;
     }
 
@@ -692,6 +734,8 @@ const OrderOnline = () => {
               {filtered.map((item, index) => {
                 const stock = getItemStock(item);
                 const isOutOfStock = stock <= 0;
+                const totalInCartForThis = getTotalQtyInCartForBase(item.id, item.name);
+                const isMaxReached = totalInCartForThis >= stock;
                 const inCart = cart.find(c => c.id === item.id);
 
                 return (
@@ -755,19 +799,32 @@ const OrderOnline = () => {
                           <div className="qty-control">
                             <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
                             <span className="qty-num">{inCart.qty}</span>
-                            <button className="qty-btn" onClick={() => updateQty(item.id, 1)}>+</button>
+                            <button 
+                              className="qty-btn" 
+                              onClick={() => updateQty(item.id, 1)}
+                              disabled={isMaxReached}
+                              style={isMaxReached ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
+                              title={isMaxReached ? `Max stock available: ${stock}` : 'Add more'}
+                            >
+                              +
+                            </button>
                           </div>
                         ) : (
-                          <button className="add-btn" onClick={() => addToCart(item)}>
-                            <span>Add to Cart</span>
+                          <button 
+                            className="add-btn" 
+                            onClick={() => addToCart(item)}
+                            disabled={isMaxReached}
+                            style={isMaxReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            <span>{isMaxReached ? 'Max In Cart' : 'Add to Cart'}</span>
                           </button>
                         )}
 
                         <button
                           className="customize-btn"
                           onClick={() => goToCustomize(item)}
-                          disabled={isOutOfStock}
-                          style={isOutOfStock ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          disabled={isOutOfStock || isMaxReached}
+                          style={(isOutOfStock || isMaxReached) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                         >
                           <span>🎨 Customize</span>
                         </button>
@@ -797,7 +854,6 @@ const OrderOnline = () => {
               </div>
             ) : (
               <>
-                {/* OUT OF STOCK ALERT IN CART */}
                 {cartHasOutOfStock && (
                   <div
                     style={{
@@ -818,8 +874,14 @@ const OrderOnline = () => {
 
                 <div className="cart-items">
                   {cart.map(item => {
-                    const live = menuItems.find(m => m.id === item.id);
-                    const itemIsOut = live && getItemStock(live) <= 0;
+                    const live = getLiveItemForCart(item);
+                    const liveStock = live ? getItemStock(live) : getItemStock(item);
+                    const itemIsOut = liveStock <= 0;
+                    const totalBaseInCart = getTotalQtyInCartForBase(
+                      live ? live.id : item.id,
+                      live ? live.name : item.name
+                    );
+                    const reachedMax = totalBaseInCart >= liveStock;
 
                     return (
                       <div
@@ -847,12 +909,22 @@ const OrderOnline = () => {
                           <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
                         </div>
                         <div className="qty-control">
-                          <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
+                          {/* Minus button: drops count and removes from cart if 1 */}
+                          <button 
+                            className="qty-btn" 
+                            onClick={() => updateQty(item.id, -1)} 
+                            title={item.qty === 1 ? 'Remove from Cart' : 'Decrease'}
+                          >
+                            −
+                          </button>
                           <span className="qty-num">{item.qty}</span>
+                          {/* Plus button: locked dynamically to stock limit set in Admin Panel */}
                           <button
                             className="qty-btn"
                             onClick={() => updateQty(item.id, 1)}
-                            disabled={itemIsOut}
+                            disabled={itemIsOut || reachedMax}
+                            style={(itemIsOut || reachedMax) ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
+                            title={reachedMax ? `Maximum stock is ${liveStock}` : 'Increase'}
                           >
                             +
                           </button>
@@ -957,14 +1029,21 @@ const OrderOnline = () => {
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
+                  
+                  {/* PHONE NUMBER: Only 10 digits allowed */}
                   <input
                     className="form-input"
                     type="tel"
-                    placeholder="Phone Number"
+                    placeholder="10-digit Mobile Number"
                     required
+                    maxLength={10}
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={e => {
+                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, phone: digitsOnly });
+                    }}
                   />
+
                   <input
                     className="form-input"
                     type="email"
