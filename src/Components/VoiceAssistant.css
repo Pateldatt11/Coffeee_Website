@@ -8,9 +8,7 @@
   /*
    * IMPORTANT:
    * 110px from bottom.
-   *
-   * એટલે assistant screen ના એકદમ નીચે નહીં,
-   * થોડું ઉપર દેખાશે.
+   
    */
   left: 24px !important;
   bottom: 110px !important;
