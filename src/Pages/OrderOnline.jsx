@@ -20,7 +20,7 @@ import './OrderOnline.css';
 
 const paymentMethods = [
   { id: 'razorpay', name: 'Razorpay (UPI / Card / Wallet)', icon: '💳', recommended: true },
-  { id: 'cod',       name: 'Cash on Delivery',               icon: '💵' },
+  { id: 'cod',       name: 'Cash on Delivery',                icon: '💵' },
 ];
 
 const TOKEN_TIERS = [
@@ -120,9 +120,7 @@ const OrderOnline = () => {
   }, [user]);
 
   // ================= MENU (LIVE FROM FIRESTORE) =================
-  const [menuItems, setMenuItems] = useState(
-    coffeeMenu.map((item, index) => ({ id: String(index + 1), stock: 10, ...item }))
-  );
+  const [menuItems, setMenuItems] = useState([]);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -130,6 +128,8 @@ const OrderOnline = () => {
       (snap) => {
         if (!snap.empty) {
           setMenuItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setMenuItems(coffeeMenu.map((item, index) => ({ id: String(index + 1), stock: 10, ...item })));
         }
       },
       (err) => console.error('Menu listener error:', err)
@@ -137,7 +137,7 @@ const OrderOnline = () => {
     return () => unsub();
   }, []);
 
-  const allCategories = ['All', ...new Set(menuItems.map(i => i.category))];
+  const allCategories = ['All', ...new Set(menuItems.map(i => i.category).filter(Boolean))];
 
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', address: '', note: ''
@@ -192,8 +192,8 @@ const OrderOnline = () => {
           // Assign unique cartItemId so each customized coffee is a separate line item
           const uniqueCustomItem = {
             ...pendingItem,
-            baseId: pendingItem.baseId || pendingItem.id,
-            id: pendingItem.id.startsWith('custom_') ? pendingItem.id : `custom_${pendingItem.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            baseId: live?.id || pendingItem.baseId || pendingItem.id,
+            id: pendingItem.id?.startsWith('custom_') ? pendingItem.id : `custom_${pendingItem.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             qty: pendingItem.qty || 1
           };
           setCart(prev => [...prev, uniqueCustomItem]);
@@ -219,14 +219,14 @@ const OrderOnline = () => {
             items.forEach(item => {
               const live = menuItems.find(m => m.id === item.id || m.name === item.name);
               const maxStock = live ? getItemStock(live) : 99;
-              const inCartCount = next.reduce((tot, c) => (c.baseId === item.id || c.id === item.id ? tot + c.qty : tot), 0);
+              const inCartCount = next.reduce((tot, c) => ((c.baseId || c.id) === (live?.id || item.id) ? tot + c.qty : tot), 0);
 
               if (inCartCount < maxStock) {
-                const idx = next.findIndex(c => c.id === item.id && !c.customization);
+                const idx = next.findIndex(c => (c.baseId || c.id) === (live?.id || item.id) && !c.customization);
                 if (idx >= 0) {
                   next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
                 } else {
-                  next.push({ ...item, baseId: item.id, qty: 1 });
+                  next.push({ ...item, id: live?.id || item.id, baseId: live?.id || item.id, qty: 1 });
                 }
                 gotSomething = true;
               }
@@ -303,19 +303,18 @@ const OrderOnline = () => {
 
     const currentTotalInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
     if (currentTotalInCart >= maxStock) {
-      alert(`Stock limit reached! Admin has set a total stock of ${maxStock} for ${item.name}.`);
+      alert(`Stock limit reached! Available stock is ${maxStock} for ${item.name}.`);
       return;
     }
 
     setCart(prev => {
-      // Find non-customized variant
-      const existsIdx = prev.findIndex(c => c.id === item.id && !c.customization);
+      const existsIdx = prev.findIndex(c => (c.baseId || c.id) === liveItem.id && !c.customization);
       if (existsIdx >= 0) {
         const copy = [...prev];
         copy[existsIdx] = { ...copy[existsIdx], qty: copy[existsIdx].qty + 1 };
         return copy;
       }
-      return [...prev, { ...item, baseId: item.id, qty: 1 }];
+      return [...prev, { ...liveItem, baseId: liveItem.id, qty: 1 }];
     });
   };
 
@@ -328,7 +327,7 @@ const OrderOnline = () => {
       alert(`Cannot customize more ${item.name}. Maximum available stock (${maxStock}) is already in your cart!`);
       return;
     }
-    navigate(`/customize/${item.id}`, { state: { item } });
+    navigate(`/customize/${item.id}`, { state: { item: liveItem } });
   };
 
   // UPDATE QUANTITY (+ / -) WITH AUTO-DELETE AT 0 AND GLOBAL BASE-STOCK LIMIT
@@ -337,12 +336,10 @@ const OrderOnline = () => {
       const target = prev.find(c => c.id === id);
       if (!target) return prev;
 
-      // 1. If at quantity 1 and '-' is clicked, remove that exact customized line item
       if (delta < 0 && target.qty <= 1) {
         return prev.filter(c => c.id !== id);
       }
 
-      // 2. If '+' is clicked, check overall stock across all variations of this coffee
       if (delta > 0) {
         const liveItem = getLiveItemForCart(target);
         const maxStock = liveItem ? getItemStock(liveItem) : (target.stock || 99);
@@ -386,7 +383,7 @@ const OrderOnline = () => {
     const inSearch =
       !searchQuery ||
       i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.category.toLowerCase().includes(searchQuery.toLowerCase());
+      i.category?.toLowerCase().includes(searchQuery.toLowerCase());
     return inCategory && inSearch;
   });
 
@@ -466,20 +463,20 @@ const OrderOnline = () => {
 
     const searchMatch = t.match(/^(?:search|find|show)\s+(.+)/);
     if (searchMatch) {
-      const query = searchMatch[1].trim();
-      if (query === 'all') {
+      const queryText = searchMatch[1].trim();
+      if (queryText === 'all') {
         setActiveCategory('All');
         setSearchQuery('');
         return 'Showing the full menu';
       }
-      const matchedCategory = cats.find(cat => cat !== 'All' && query.includes(cat.toLowerCase()));
+      const matchedCategory = cats.find(cat => cat !== 'All' && queryText.includes(cat.toLowerCase()));
       if (matchedCategory) {
         setActiveCategory(matchedCategory);
         setSearchQuery('');
         return `Showing ${matchedCategory}`;
       }
-      setSearchQuery(query);
-      return `Searching for "${query}"`;
+      setSearchQuery(queryText);
+      return `Searching for "${queryText}"`;
     }
 
     const directItem = items.find(m => t.includes(m.name.toLowerCase()));
@@ -511,6 +508,7 @@ const OrderOnline = () => {
     createdAt: new Date(),
   });
 
+  // Real-time batch decrement of base menu items in Firestore
   const persistOrder = async ({ method, paymentId = '' }) => {
     const docRef = await addDoc(collection(db, 'orders'), {
       userId: user?.uid || null,
@@ -530,7 +528,7 @@ const OrderOnline = () => {
         id: item.id,
         baseId: item.baseId || item.id,
         name: item.name,
-        category: item.category,
+        category: item.category || '',
         price: item.price,
         qty: item.qty,
         img: item.img || '',
@@ -540,13 +538,13 @@ const OrderOnline = () => {
       createdAt: serverTimestamp()
     });
 
-    // Real-time batch decrement of base menu items in Firestore
     try {
       const batch = writeBatch(db);
       cart.forEach(item => {
         const live = getLiveItemForCart(item);
-        if (live && live.id) {
-          const itemRef = doc(db, 'menu', live.id);
+        const targetDocId = live?.id || item.baseId || item.id;
+        if (targetDocId) {
+          const itemRef = doc(db, 'menu', targetDocId);
           batch.update(itemRef, {
             stock: increment(-Number(item.qty || 1))
           });
@@ -763,7 +761,7 @@ const OrderOnline = () => {
                 const isOutOfStock = stock <= 0;
                 const totalInCartForThis = getTotalQtyInCartForBase(item.id, item.name);
                 const isMaxReached = totalInCartForThis >= stock;
-                const inCart = cart.find(c => c.id === item.id && !c.customization);
+                const inCart = cart.find(c => (c.baseId || c.id) === item.id && !c.customization);
 
                 return (
                   <div
@@ -936,7 +934,6 @@ const OrderOnline = () => {
                           <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
                         </div>
                         <div className="qty-control">
-                          {/* Decrements quantity or removes the row completely if 1 */}
                           <button 
                             className="qty-btn" 
                             onClick={() => updateQty(item.id, -1)} 
@@ -945,7 +942,6 @@ const OrderOnline = () => {
                             −
                           </button>
                           <span className="qty-num">{item.qty}</span>
-                          {/* Increments quantity only if total stock across variations is not exceeded */}
                           <button
                             className="qty-btn"
                             onClick={() => updateQty(item.id, 1)}
@@ -1057,7 +1053,7 @@ const OrderOnline = () => {
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                   
-                  {/* PHONE NUMBER: Only 10 digits allowed */}
+                  {/* PHONE NUMBER */}
                   <input
                     className="form-input"
                     type="tel"
