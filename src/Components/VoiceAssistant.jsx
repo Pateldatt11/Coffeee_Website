@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useVoiceAssistant from '../hooks/useVoiceAssistant';
-import './VoiceAssistant.css';
+import "./VoiceAssistant.css";  
 
 const VoiceAssistant = ({ onCommand, hints = [] }) => {
   const [showHints, setShowHints] = useState(false);
