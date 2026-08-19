@@ -9,10 +9,9 @@ import {
   doc,
   updateDoc,
   increment,
-  writeBatch,
+  writeBatch
 } from 'firebase/firestore';
 import useRazorpay from '../hooks/useRazorpay';
-import useVoiceAssistant from '../hooks/useVoiceAssistant';
 import { auth, db } from '../firebase';
 import { coffeeMenu } from '../data/menuData';
 import { generateBillPDF } from '../utils/generateBill';
@@ -21,14 +20,14 @@ import './OrderOnline.css';
 
 const paymentMethods = [
   { id: 'razorpay', name: 'Razorpay (UPI / Card / Wallet)', icon: '💳', recommended: true },
-  { id: 'cod', name: 'Cash on Delivery', icon: '💵' },
+  { id: 'cod',       name: 'Cash on Delivery',               icon: '💵' },
 ];
 
 const TOKEN_TIERS = [
   { min: 2000, cost: 2000, percent: 100, label: 'Free Coffee (2000 tokens)' },
-  { min: 1500, cost: 1500, percent: 35, label: '35% Off (1500 tokens)' },
-  { min: 1000, cost: 1000, percent: 20, label: '20% Off (1000 tokens)' },
-  { min: 500, cost: 500, percent: 10, label: '10% Off (500 tokens)' },
+  { min: 1500, cost: 1500, percent: 35,  label: '35% Off (1500 tokens)' },
+  { min: 1000, cost: 1000, percent: 20,  label: '20% Off (1000 tokens)' },
+  { min: 500,  cost: 500,  percent: 10,  label: '10% Off (500 tokens)' },
 ];
 
 const PENDING_CART_KEY = 'brewhaven_pending_cart_item';
@@ -86,14 +85,6 @@ const rewardStyles = {
   },
 };
 
-const getCustomizationKey = (customization) => {
-  if (!customization) return 'plain';
-  return Object.keys(customization)
-    .sort()
-    .map((key) => `${key}:${customization[key]}`)
-    .join('|');
-};
-
 const OrderOnline = () => {
   const navigate = useNavigate();
 
@@ -113,11 +104,7 @@ const OrderOnline = () => {
   const [useTokens, setUseTokens] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      setWallet(0);
-      setTokens(0);
-      return;
-    }
+    if (!user) { setWallet(0); setTokens(0); return; }
     const unsub = onSnapshot(
       doc(db, 'users', user.uid),
       (snap) => {
@@ -132,6 +119,7 @@ const OrderOnline = () => {
     return () => unsub();
   }, [user]);
 
+  // ================= MENU (LIVE FROM FIRESTORE) =================
   const [menuItems, setMenuItems] = useState(
     coffeeMenu.map((item, index) => ({ id: String(index + 1), stock: 10, ...item }))
   );
@@ -141,7 +129,7 @@ const OrderOnline = () => {
       collection(db, 'menu'),
       (snap) => {
         if (!snap.empty) {
-          setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          setMenuItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
       },
       (err) => console.error('Menu listener error:', err)
@@ -149,14 +137,10 @@ const OrderOnline = () => {
     return () => unsub();
   }, []);
 
-  const allCategories = ['All', ...new Set(menuItems.map((i) => i.category))];
+  const allCategories = ['All', ...new Set(menuItems.map(i => i.category))];
 
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    note: '',
+    name: '', phone: '', email: '', address: '', note: ''
   });
 
   const [paymentDetails, setPaymentDetails] = useState(null);
@@ -165,77 +149,57 @@ const OrderOnline = () => {
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
+  // Helper: Get sanitized numeric stock from menu item
   const getItemStock = (item) => {
     const s = Number(item?.stock);
     return Number.isFinite(s) ? Math.floor(s) : 0;
   };
 
-  const getLiveItemForCart = useCallback(
-    (cartItem) => {
-      return menuItems.find(
-        (m) =>
-          m.id === (cartItem.baseId || cartItem.id) ||
-          m.name?.toLowerCase().trim() === cartItem.name?.toLowerCase().trim()
-      );
-    },
-    [menuItems]
-  );
+  // Helper: Find base menu item from Firestore for any cart item
+  const getLiveItemForCart = useCallback((cartItem) => {
+    return menuItems.find(m => 
+      m.id === (cartItem.baseId || cartItem.id) || 
+      m.name?.toLowerCase().trim() === cartItem.name?.toLowerCase().trim()
+    );
+  }, [menuItems]);
 
-  const getTotalQtyInCartForBase = useCallback(
-    (baseItemId, baseItemName) => {
-      return cart.reduce((total, c) => {
-        const match =
-          (c.baseId && c.baseId === baseItemId) ||
-          c.id === baseItemId ||
-          c.name?.toLowerCase().trim() === baseItemName?.toLowerCase().trim();
-        return match ? total + (Number(c.qty) || 0) : total;
-      }, 0);
-    },
-    [cart]
-  );
+  // Helper: Total quantity of this specific coffee across ALL customizations in the cart
+  const getTotalQtyInCartForBase = useCallback((baseItemId, baseItemName) => {
+    return cart.reduce((total, c) => {
+      const match = (c.baseId && c.baseId === baseItemId) ||
+                    (c.id === baseItemId) ||
+                    (c.name?.toLowerCase().trim() === baseItemName?.toLowerCase().trim());
+      return match ? total + (Number(c.qty) || 0) : total;
+    }, 0);
+  }, [cart]);
 
+  // ================= PICKUP EFFECT WITH MULTI-CUSTOMIZATION SUPPORT =================
   useEffect(() => {
     let gotSomething = false;
 
+    // 1. Pick up Single Customized Item from Customize page
     try {
       const pending = localStorage.getItem(PENDING_CART_KEY);
       if (pending) {
         const pendingItem = JSON.parse(pending);
-        const baseId = pendingItem.baseId || pendingItem.id;
-        const live = menuItems.find((m) => m.id === baseId || m.name === pendingItem.name);
+        
+        // Find live base item and check total stock limit
+        const live = menuItems.find(m => m.id === (pendingItem.baseId || pendingItem.id) || m.name === pendingItem.name);
         const liveStock = live ? getItemStock(live) : 99;
-        const currentInCart = getTotalQtyInCartForBase(live?.id || baseId, pendingItem.name);
+        const currentInCart = getTotalQtyInCartForBase(live?.id || pendingItem.id, pendingItem.name);
 
         if (currentInCart + (pendingItem.qty || 1) <= liveStock) {
-          const customKey = getCustomizationKey(pendingItem.customization);
-
-          setCart((prev) => {
-            const existingIndex = prev.findIndex(
-              (c) =>
-                (c.baseId === baseId || c.id === baseId) &&
-                getCustomizationKey(c.customization) === customKey
-            );
-
-            if (existingIndex >= 0) {
-              const updated = [...prev];
-              updated[existingIndex] = {
-                ...updated[existingIndex],
-                qty: updated[existingIndex].qty + (pendingItem.qty || 1),
-              };
-              return updated;
-            } else {
-              const uniqueLineItem = {
-                ...pendingItem,
-                baseId: baseId,
-                id: `cart_${baseId}_${customKey}_${Date.now()}`,
-                qty: pendingItem.qty || 1,
-              };
-              return [...prev, uniqueLineItem];
-            }
-          });
+          // Assign unique cartItemId so each customized coffee is a separate line item
+          const uniqueCustomItem = {
+            ...pendingItem,
+            baseId: pendingItem.baseId || pendingItem.id,
+            id: pendingItem.id.startsWith('custom_') ? pendingItem.id : `custom_${pendingItem.id}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            qty: pendingItem.qty || 1
+          };
+          setCart(prev => [...prev, uniqueCustomItem]);
           gotSomething = true;
         } else {
-          alert(`Cannot add customized ${pendingItem.name}. Total stock limit of ${liveStock} reached!`);
+          alert(`Cannot add customized ${pendingItem.name}. Stock limit (${liveStock}) reached!`);
         }
       }
     } catch (err) {
@@ -244,27 +208,25 @@ const OrderOnline = () => {
       localStorage.removeItem(PENDING_CART_KEY);
     }
 
+    // 2. Pick up Wishlist Items
     try {
       const pendingBatch = localStorage.getItem(PENDING_WISHLIST_CART_KEY);
       if (pendingBatch) {
         const items = JSON.parse(pendingBatch);
         if (Array.isArray(items) && items.length > 0) {
-          setCart((prev) => {
+          setCart(prev => {
             let next = [...prev];
-            items.forEach((item) => {
-              const live = menuItems.find((m) => m.id === item.id || m.name === item.name);
+            items.forEach(item => {
+              const live = menuItems.find(m => m.id === item.id || m.name === item.name);
               const maxStock = live ? getItemStock(live) : 99;
-              const inCartCount = next.reduce(
-                (tot, c) => (c.baseId === item.id || c.id === item.id ? tot + c.qty : tot),
-                0
-              );
+              const inCartCount = next.reduce((tot, c) => (c.baseId === item.id || c.id === item.id ? tot + c.qty : tot), 0);
 
               if (inCartCount < maxStock) {
-                const idx = next.findIndex((c) => (c.baseId === item.id || c.id === item.id) && !c.customization);
+                const idx = next.findIndex(c => c.id === item.id && !c.customization);
                 if (idx >= 0) {
                   next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
                 } else {
-                  next.push({ ...item, baseId: item.id, id: item.id, qty: 1 });
+                  next.push({ ...item, baseId: item.id, qty: 1 });
                 }
                 gotSomething = true;
               }
@@ -300,29 +262,28 @@ const OrderOnline = () => {
     document.addEventListener('mousemove', onMouseMove);
 
     const hoverTargets = document.querySelectorAll(
-      'button, a, .order-card, .filter-btn, .payment-option, .voice-fab, .voice-hint-btn, .search-clear-btn, .search-mic-btn'
+      'button, a, .order-card, .filter-btn, .payment-option, .voice-fab, .voice-hint-btn, .search-clear-btn'
     );
-    hoverTargets.forEach((el) => {
+    hoverTargets.forEach(el => {
       el.addEventListener('mouseenter', addHover);
       el.addEventListener('mouseleave', rmvHover);
     });
 
     const observer = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add('visible');
-            observer.unobserve(e.target);
-          }
-        }),
+      (entries) => entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      }),
       { threshold: 0.1 }
     );
 
-    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
-      hoverTargets.forEach((el) => {
+      hoverTargets.forEach(el => {
         el.removeEventListener('mouseenter', addHover);
         el.removeEventListener('mouseleave', rmvHover);
       });
@@ -330,8 +291,9 @@ const OrderOnline = () => {
     };
   }, [onMouseMove, addHover, rmvHover, activeCategory, menuItems, searchQuery]);
 
+  // Standard Add To Cart (Non-customized)
   const addToCart = (item) => {
-    const liveItem = menuItems.find((m) => m.id === item.id) || item;
+    const liveItem = menuItems.find(m => m.id === item.id) || item;
     const maxStock = getItemStock(liveItem);
 
     if (maxStock <= 0) {
@@ -345,68 +307,75 @@ const OrderOnline = () => {
       return;
     }
 
-    setCart((prev) => {
-      const plainIdx = prev.findIndex((c) => (c.baseId === item.id || c.id === item.id) && !c.customization);
-      if (plainIdx >= 0) {
+    setCart(prev => {
+      // Find non-customized variant
+      const existsIdx = prev.findIndex(c => c.id === item.id && !c.customization);
+      if (existsIdx >= 0) {
         const copy = [...prev];
-        copy[plainIdx] = { ...copy[plainIdx], qty: copy[plainIdx].qty + 1 };
+        copy[existsIdx] = { ...copy[existsIdx], qty: copy[existsIdx].qty + 1 };
         return copy;
       }
-      return [...prev, { ...item, baseId: item.id, id: item.id, qty: 1 }];
+      return [...prev, { ...item, baseId: item.id, qty: 1 }];
     });
   };
 
   const goToCustomize = (item) => {
-    const liveItem = menuItems.find((m) => m.id === item.id) || item;
+    const liveItem = menuItems.find(m => m.id === item.id) || item;
     const maxStock = getItemStock(liveItem);
     const currentInCart = getTotalQtyInCartForBase(liveItem.id, liveItem.name);
 
     if (maxStock <= 0 || currentInCart >= maxStock) {
-      alert(`Cannot customize more ${item.name}. Total available stock (${maxStock}) is already in your cart!`);
+      alert(`Cannot customize more ${item.name}. Maximum available stock (${maxStock}) is already in your cart!`);
       return;
     }
     navigate(`/customize/${item.id}`, { state: { item } });
   };
 
+  // UPDATE QUANTITY (+ / -) WITH AUTO-DELETE AT 0 AND GLOBAL BASE-STOCK LIMIT
   const updateQty = (id, delta) => {
-    setCart((prev) => {
-      const target = prev.find((c) => c.id === id);
+    setCart(prev => {
+      const target = prev.find(c => c.id === id);
       if (!target) return prev;
 
+      // 1. If at quantity 1 and '-' is clicked, remove that exact customized line item
       if (delta < 0 && target.qty <= 1) {
-        return prev.filter((c) => c.id !== id);
+        return prev.filter(c => c.id !== id);
       }
 
+      // 2. If '+' is clicked, check overall stock across all variations of this coffee
       if (delta > 0) {
         const liveItem = getLiveItemForCart(target);
-        const maxStock = liveItem ? getItemStock(liveItem) : target.stock || 99;
+        const maxStock = liveItem ? getItemStock(liveItem) : (target.stock || 99);
         const currentTotalInCart = getTotalQtyInCartForBase(
-          liveItem ? liveItem.id : target.baseId || target.id,
+          liveItem ? liveItem.id : (target.baseId || target.id),
           liveItem ? liveItem.name : target.name
         );
 
         if (currentTotalInCart + delta > maxStock) {
-          alert(`Stock limit reached! Total available stock for ${target.name} is ${maxStock}.`);
+          alert(`Stock limit reached! You cannot add more than ${maxStock} total units of ${target.name}.`);
           return prev;
         }
       }
 
       return prev
-        .map((c) => (c.id === id ? { ...c, qty: c.qty + delta } : c))
-        .filter((c) => c.qty > 0);
+        .map(c => (c.id === id ? { ...c, qty: c.qty + delta } : c))
+        .filter(c => c.qty > 0);
     });
   };
 
   const totalItems = cart.reduce((sum, c) => sum + c.qty, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
 
-  const cartHasOutOfStock = cart.some((c) => {
+  // Check if any cart item became out of stock
+  const cartHasOutOfStock = cart.some(c => {
     const live = getLiveItemForCart(c);
     return live ? getItemStock(live) <= 0 : false;
   });
 
-  const bestTier = TOKEN_TIERS.find((t) => tokens >= t.min) || null;
-  const tokenDiscountAmount = useTokens && bestTier ? Math.round((totalPrice * bestTier.percent) / 100) : 0;
+  const bestTier = TOKEN_TIERS.find(t => tokens >= t.min) || null;
+  const tokenDiscountAmount = (useTokens && bestTier)
+    ? Math.round((totalPrice * bestTier.percent) / 100)
+    : 0;
   const afterTokenDiscount = Math.max(0, totalPrice - tokenDiscountAmount);
   const walletApplied = Math.min(wallet, afterTokenDiscount);
   const finalTotal = Math.max(0, afterTokenDiscount - walletApplied);
@@ -421,6 +390,7 @@ const OrderOnline = () => {
     return inCategory && inSearch;
   });
 
+  // VOICE ASSISTANT PARSER
   const stateRef = useRef({});
   stateRef.current = { menuItems, cart, allCategories, bestTier };
 
@@ -467,7 +437,7 @@ const OrderOnline = () => {
     const removeMatch = t.match(/^(?:remove|delete)\s+(.+?)(?:\s+from\s+cart)?$/);
     if (removeMatch) {
       const name = removeMatch[1].trim();
-      const match = currentCart.find((c) => c.name.toLowerCase().includes(name));
+      const match = currentCart.find(c => c.name.toLowerCase().includes(name));
       if (match) {
         updateQty(match.id, -match.qty);
         return `Removed ${match.name} from your cart`;
@@ -483,7 +453,7 @@ const OrderOnline = () => {
 
     if (addMatch) {
       const name = addMatch[1].trim();
-      const match = items.find((m) => m.name.toLowerCase().includes(name));
+      const match = items.find(m => m.name.toLowerCase().includes(name));
       if (match) {
         const stock = getItemStock(match);
         if (stock <= 0) return `Sorry, ${match.name} is currently out of stock.`;
@@ -502,7 +472,7 @@ const OrderOnline = () => {
         setSearchQuery('');
         return 'Showing the full menu';
       }
-      const matchedCategory = cats.find((cat) => cat !== 'All' && query.includes(cat.toLowerCase()));
+      const matchedCategory = cats.find(cat => cat !== 'All' && query.includes(cat.toLowerCase()));
       if (matchedCategory) {
         setActiveCategory(matchedCategory);
         setSearchQuery('');
@@ -512,7 +482,7 @@ const OrderOnline = () => {
       return `Searching for "${query}"`;
     }
 
-    const directItem = items.find((m) => t.includes(m.name.toLowerCase()));
+    const directItem = items.find(m => t.includes(m.name.toLowerCase()));
     if (directItem) {
       const stock = getItemStock(directItem);
       if (stock <= 0) return `Sorry, ${directItem.name} is out of stock.`;
@@ -525,34 +495,10 @@ const OrderOnline = () => {
     return `Searching for "${t}"`;
   }, [getTotalQtyInCartForBase]);
 
-  // Search bar mic integration
-  const {
-    isListening: isSearchMicListening,
-    startListening: startSearchMic,
-    stopListening: stopSearchMic,
-    isSupported: isSpeechSupported,
-  } = useVoiceAssistant({
-    onCommand: (spokenText) => {
-      setSearchQuery(spokenText);
-      handleVoiceCommand(spokenText);
-    },
-  });
-
-  const handleSearchMicClick = () => {
-    if (isSearchMicListening) {
-      stopSearchMic();
-    } else {
-      startSearchMic();
-    }
-  };
-
   const buildOrderForBill = (orderId, method, paymentId = '') => ({
     id: orderId,
-    items: cart.map((item) => ({
-      name: item.name,
-      price: item.price,
-      qty: item.qty,
-      img: item.img || '',
+    items: cart.map(item => ({
+      name: item.name, price: item.price, qty: item.qty, img: item.img || '',
       customization: item.customization || null,
     })),
     subtotal: totalPrice,
@@ -580,7 +526,7 @@ const OrderOnline = () => {
       walletUsed: walletApplied,
       tokensEarned,
       amount: finalTotal,
-      items: cart.map((item) => ({
+      items: cart.map(item => ({
         id: item.id,
         baseId: item.baseId || item.id,
         name: item.name,
@@ -591,17 +537,18 @@ const OrderOnline = () => {
         customization: item.customization || null,
       })),
       status: 'placed',
-      createdAt: serverTimestamp(),
+      createdAt: serverTimestamp()
     });
 
+    // Real-time batch decrement of base menu items in Firestore
     try {
       const batch = writeBatch(db);
-      cart.forEach((item) => {
+      cart.forEach(item => {
         const live = getLiveItemForCart(item);
         if (live && live.id) {
           const itemRef = doc(db, 'menu', live.id);
           batch.update(itemRef, {
-            stock: increment(-Number(item.qty || 1)),
+            stock: increment(-Number(item.qty || 1))
           });
         }
       });
@@ -611,7 +558,7 @@ const OrderOnline = () => {
     }
 
     if (user) {
-      const tierTokensSpent = useTokens && bestTier ? bestTier.cost : 0;
+      const tierTokensSpent = (useTokens && bestTier) ? bestTier.cost : 0;
       try {
         await updateDoc(doc(db, 'users', user.uid), {
           wallet: increment(-walletApplied),
@@ -683,13 +630,13 @@ const OrderOnline = () => {
           try {
             const orderId = await persistOrder({
               method: 'Razorpay',
-              paymentId: payment.paymentId,
+              paymentId: payment.paymentId
             });
             setSaveFailed(false);
             setPaymentDetails({
               method: 'Razorpay',
               paymentId: payment.paymentId,
-              amount: payment.amount,
+              amount: payment.amount
             });
             setPlacedOrder(buildOrderForBill(orderId, 'Razorpay', payment.paymentId));
             setOrderPlaced(true);
@@ -700,7 +647,7 @@ const OrderOnline = () => {
             setPaymentDetails({
               method: 'Razorpay',
               paymentId: payment.paymentId,
-              amount: payment.amount,
+              amount: payment.amount
             });
             setPlacedOrder(buildOrderForBill(null, 'Razorpay', payment.paymentId));
             setOrderPlaced(true);
@@ -710,7 +657,7 @@ const OrderOnline = () => {
         onFailure: (error) => {
           console.error('Payment failed:', error);
           alert('Payment failed. Please try again.');
-        },
+        }
       });
     }
   };
@@ -775,41 +722,15 @@ const OrderOnline = () => {
             <h2>Choose Your <em>Brew</em></h2>
           </div>
 
-          {/* Search Bar with Mic button */}
           <div className="search-bar-wrap fade-in">
             <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder={isSearchMicListening ? 'Listening... Speak now' : 'Search coffees… or tap the mic'}
+              placeholder="Search coffees… or tap the mic"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-
-            {isSpeechSupported && (
-              <button
-                type="button"
-                className={`search-mic-btn ${isSearchMicListening ? 'active-listening' : ''}`}
-                onClick={handleSearchMicClick}
-                title={isSearchMicListening ? 'Stop listening' : 'Search by voice'}
-                aria-label="Voice Search"
-                style={{
-                  background: isSearchMicListening ? '#d4a373' : 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '1.1rem',
-                  padding: '0 8px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {isSearchMicListening ? '⏹️' : '🎙️'}
-              </button>
-            )}
-
             {searchQuery && (
               <button className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
                 ✕
@@ -818,14 +739,11 @@ const OrderOnline = () => {
           </div>
 
           <div className="filter-bar fade-in">
-            {allCategories.map((cat) => (
+            {allCategories.map(cat => (
               <button
                 key={cat}
                 className={`filter-btn ${activeCategory === cat ? 'active' : ''}`}
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory(cat);
-                }}
+                onClick={() => { setSearchQuery(''); setActiveCategory(cat); }}
               >
                 <span>{cat}</span>
               </button>
@@ -845,9 +763,7 @@ const OrderOnline = () => {
                 const isOutOfStock = stock <= 0;
                 const totalInCartForThis = getTotalQtyInCartForBase(item.id, item.name);
                 const isMaxReached = totalInCartForThis >= stock;
-                const plainInCart = cart.find(
-                  (c) => (c.baseId === item.id || c.id === item.id) && !c.customization
-                );
+                const inCart = cart.find(c => c.id === item.id && !c.customization);
 
                 return (
                   <div
@@ -856,14 +772,15 @@ const OrderOnline = () => {
                     style={{
                       transitionDelay: `${(index % 8) * 0.07}s`,
                       opacity: isOutOfStock ? 0.6 : 1,
-                      position: 'relative',
+                      position: 'relative'
                     }}
                   >
                     <div className="order-img-wrap">
                       <img src={item.img} alt={item.name} className="order-img" loading="lazy" />
                       <div className="card-overlay" />
                       <span className="card-category">{item.category}</span>
-
+                      
+                      {/* REAL-TIME OUT OF STOCK BADGE */}
                       {isOutOfStock && (
                         <div
                           style={{
@@ -880,7 +797,7 @@ const OrderOnline = () => {
                             borderRadius: '999px',
                             boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
                             zIndex: 2,
-                            whiteSpace: 'nowrap',
+                            whiteSpace: 'nowrap'
                           }}
                         >
                           🚫 OUT OF STOCK
@@ -900,18 +817,18 @@ const OrderOnline = () => {
                               background: 'rgba(255,255,255,0.06)',
                               color: '#a89070',
                               cursor: 'not-allowed',
-                              border: '1px solid rgba(201,149,108,0.15)',
+                              border: '1px solid rgba(201,149,108,0.15)'
                             }}
                           >
                             <span>Unavailable</span>
                           </button>
-                        ) : plainInCart ? (
+                        ) : inCart ? (
                           <div className="qty-control">
-                            <button className="qty-btn" onClick={() => updateQty(plainInCart.id, -1)}>−</button>
-                            <span className="qty-num">{plainInCart.qty}</span>
-                            <button
-                              className="qty-btn"
-                              onClick={() => updateQty(plainInCart.id, 1)}
+                            <button className="qty-btn" onClick={() => updateQty(inCart.id, -1)}>−</button>
+                            <span className="qty-num">{inCart.qty}</span>
+                            <button 
+                              className="qty-btn" 
+                              onClick={() => updateQty(inCart.id, 1)}
                               disabled={isMaxReached}
                               style={isMaxReached ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
                               title={isMaxReached ? `Max total stock available: ${stock}` : 'Add more'}
@@ -920,8 +837,8 @@ const OrderOnline = () => {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            className="add-btn"
+                          <button 
+                            className="add-btn" 
                             onClick={() => addToCart(item)}
                             disabled={isMaxReached}
                             style={isMaxReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
@@ -934,7 +851,7 @@ const OrderOnline = () => {
                           className="customize-btn"
                           onClick={() => goToCustomize(item)}
                           disabled={isOutOfStock || isMaxReached}
-                          style={isOutOfStock || isMaxReached ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          style={(isOutOfStock || isMaxReached) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                         >
                           <span>🎨 Customize</span>
                         </button>
@@ -951,7 +868,7 @@ const OrderOnline = () => {
       {/* Cart Drawer */}
       {cartOpen && (
         <div className="cart-overlay" onClick={() => setCartOpen(false)}>
-          <div className="cart-drawer" onClick={(e) => e.stopPropagation()}>
+          <div className="cart-drawer" onClick={e => e.stopPropagation()}>
             <div className="cart-header">
               <h2>Your <em>Order</em></h2>
               <button className="cart-close" onClick={() => setCartOpen(false)}>✕</button>
@@ -975,7 +892,7 @@ const OrderOnline = () => {
                       fontSize: '0.8rem',
                       fontWeight: 600,
                       marginBottom: '1rem',
-                      textAlign: 'center',
+                      textAlign: 'center'
                     }}
                   >
                     ⚠️ Some items in your cart are Out of Stock. Please remove them to checkout.
@@ -983,12 +900,12 @@ const OrderOnline = () => {
                 )}
 
                 <div className="cart-items">
-                  {cart.map((item) => {
+                  {cart.map(item => {
                     const live = getLiveItemForCart(item);
                     const liveStock = live ? getItemStock(live) : getItemStock(item);
                     const itemIsOut = liveStock <= 0;
                     const totalBaseInCart = getTotalQtyInCartForBase(
-                      live ? live.id : item.baseId || item.id,
+                      live ? live.id : (item.baseId || item.id),
                       live ? live.name : item.name
                     );
                     const reachedMax = totalBaseInCart >= liveStock;
@@ -1013,28 +930,28 @@ const OrderOnline = () => {
                                 item.customization.sugar,
                                 item.customization.roast,
                                 item.customization.straw ? 'Extra Straw' : null,
-                              ]
-                                .filter(Boolean)
-                                .join(' · ')}
+                              ].filter(Boolean).join(' · ')}
                             </p>
                           )}
                           <p className="cart-item-price">₹ {item.price} × {item.qty}</p>
                         </div>
                         <div className="qty-control">
-                          <button
-                            className="qty-btn"
-                            onClick={() => updateQty(item.id, -1)}
+                          {/* Decrements quantity or removes the row completely if 1 */}
+                          <button 
+                            className="qty-btn" 
+                            onClick={() => updateQty(item.id, -1)} 
                             title={item.qty === 1 ? 'Remove from Cart' : 'Decrease'}
                           >
                             −
                           </button>
                           <span className="qty-num">{item.qty}</span>
+                          {/* Increments quantity only if total stock across variations is not exceeded */}
                           <button
                             className="qty-btn"
                             onClick={() => updateQty(item.id, 1)}
                             disabled={itemIsOut || reachedMax}
-                            style={itemIsOut || reachedMax ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
-                            title={reachedMax ? `Total stock of ${liveStock} reached for this coffee` : 'Increase'}
+                            style={(itemIsOut || reachedMax) ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
+                            title={reachedMax ? `Maximum stock of ${liveStock} reached for this coffee` : 'Increase'}
                           >
                             +
                           </button>
@@ -1049,6 +966,7 @@ const OrderOnline = () => {
                   <span className="total-price">₹ {totalPrice}</span>
                 </div>
 
+                {/* Rewards */}
                 {user && (wallet > 0 || tokens > 0) && (
                   <div style={rewardStyles.wrap}>
                     <p className="section-tag" style={{ marginBottom: '0.8rem' }}>Your Rewards</p>
@@ -1092,10 +1010,11 @@ const OrderOnline = () => {
                   </div>
                 )}
 
+                {/* Payment Options */}
                 <div className="payment-section">
                   <p className="section-tag" style={{ marginBottom: '1rem' }}>Select Payment Method</p>
                   <div className="payment-options">
-                    {paymentMethods.map((method) => (
+                    {paymentMethods.map(method => (
                       <label
                         key={method.id}
                         className={`payment-option ${selectedPayment === method.id ? 'selected' : ''}`}
@@ -1126,6 +1045,7 @@ const OrderOnline = () => {
                   )}
                 </div>
 
+                {/* Checkout Form */}
                 <form className="checkout-form" onSubmit={handleOrder}>
                   <p className="section-tag" style={{ marginBottom: '1.2rem' }}>Delivery Details</p>
                   <input
@@ -1134,9 +1054,10 @@ const OrderOnline = () => {
                     placeholder="Your Name"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
-
+                  
+                  {/* PHONE NUMBER: Only 10 digits allowed */}
                   <input
                     className="form-input"
                     type="tel"
@@ -1144,7 +1065,7 @@ const OrderOnline = () => {
                     required
                     maxLength={10}
                     value={formData.phone}
-                    onChange={(e) => {
+                    onChange={e => {
                       const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
                       setFormData({ ...formData, phone: digitsOnly });
                     }}
@@ -1156,7 +1077,7 @@ const OrderOnline = () => {
                     placeholder="Email (for payment receipt)"
                     required={selectedPayment === 'razorpay'}
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
                   />
                   <input
                     className="form-input"
@@ -1164,13 +1085,13 @@ const OrderOnline = () => {
                     placeholder="Delivery Address"
                     required
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
                   />
                   <textarea
                     className="form-input form-textarea"
                     placeholder="Special instructions (optional)"
                     value={formData.note}
-                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                    onChange={e => setFormData({ ...formData, note: e.target.value })}
                   />
 
                   <button
@@ -1195,7 +1116,7 @@ const OrderOnline = () => {
       {/* Success Modal */}
       {orderPlaced && (
         <div className="success-overlay" onClick={resetOrder}>
-          <div className="success-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="success-modal" onClick={e => e.stopPropagation()}>
             {saveFailed ? (
               <>
                 <div className="success-icon">⚠️</div>
