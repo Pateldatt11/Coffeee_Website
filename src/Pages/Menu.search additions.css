@@ -1,0 +1,62 @@
+/* =====================================================
+   ADD THIS BLOCK TO THE BOTTOM OF YOUR EXISTING Menu.css
+   — do not replace the whole file, just paste this at
+   the end. Styles the new type-to-search bar (voice
+   search shares the same input/state).
+===================================================== */
+
+.search-bar-wrap {
+  position: relative;
+  max-width: 460px;
+  margin: 0 auto 2rem;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.85rem 2.6rem 0.85rem 2.6rem;
+  background: rgba(13, 8, 5, 0.6);
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  color: var(--cream);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  border-radius: 30px;
+  outline: none;
+  transition: border-color 0.3s var(--transition);
+}
+
+.search-input::placeholder { color: var(--muted); opacity: 0.7; }
+.search-input:focus { border-color: var(--gold); }
+
+.search-clear-btn {
+  position: absolute;
+  right: 0.9rem;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(201, 149, 108, 0.15);
+  color: var(--gold-light);
+  font-size: 0.75rem;
+  cursor: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s;
+}
+
+.search-clear-btn:hover { background: rgba(201, 149, 108, 0.3); }
+
+@media (max-width: 600px) {
+  .search-bar-wrap { max-width: 100%; margin-bottom: 1.5rem; }
+  .search-input { font-size: 0.85rem; padding: 0.75rem 2.4rem; }
+}

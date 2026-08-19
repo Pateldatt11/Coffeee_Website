@@ -1,0 +1,579 @@
+/* =========================================================
+   VOICE ASSISTANT
+   ========================================================= */
+
+.voice-assistant {
+  position: fixed !important;
+
+  /*
+   * IMPORTANT:
+   * 110px from bottom.
+   *
+   * એટલે assistant screen ના એકદમ નીચે નહીં,
+   * થોડું ઉપર દેખાશે.
+   */
+  left: 24px !important;
+  bottom: 110px !important;
+
+  /*
+   * Maximum z-index so it stays above page content.
+   */
+  z-index: 2147483647 !important;
+
+  width: max-content;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  gap: 10px;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  /*
+   * Prevent parent/page transforms from affecting it.
+   */
+  transform: none !important;
+
+  pointer-events: none;
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   BUTTON ROW
+   ========================================================= */
+
+.voice-btn-row {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  pointer-events: auto;
+}
+
+
+/* =========================================================
+   MICROPHONE BUTTON
+   ========================================================= */
+
+.voice-fab {
+  position: relative;
+
+  width: 62px;
+  height: 62px;
+
+  padding: 0;
+  margin: 0;
+
+  border-radius: 50%;
+
+  border: 1.5px solid rgba(201, 149, 108, 0.35);
+
+  background: var(--mocha, #2a1a0e);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 1.5rem;
+
+  cursor: none;
+
+  outline: none;
+
+  transition:
+    transform 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.7);
+
+  isolation: isolate;
+
+  box-sizing: border-box;
+}
+
+
+/* Hover */
+
+.voice-fab:hover {
+  border-color: var(--gold, #c9956c);
+
+  background: rgba(201, 149, 108, 0.18);
+
+  box-shadow:
+    0 0 0 4px rgba(201, 149, 108, 0.18),
+    0 12px 35px rgba(0, 0, 0, 0.8);
+
+  transform: scale(1.08);
+}
+
+
+/* Listening */
+
+.voice-fab.listening {
+  border-color: #e0705f;
+
+  background: rgba(224, 112, 96, 0.15);
+
+  box-shadow:
+    0 0 0 4px rgba(224, 112, 96, 0.2),
+    0 12px 35px rgba(0, 0, 0, 0.8);
+}
+
+
+/* Mic icon */
+
+.voice-mic-icon {
+  position: relative;
+
+  z-index: 5;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  line-height: 1;
+
+  filter:
+    drop-shadow(
+      0 2px 4px rgba(0, 0, 0, 0.4)
+    );
+}
+
+
+/* =========================================================
+   PULSE RING
+   ========================================================= */
+
+.voice-pulse-ring {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 62px;
+  height: 62px;
+
+  margin-left: -31px;
+  margin-top: -31px;
+
+  border-radius: 50%;
+
+  border: 2px solid #e0705f;
+
+  pointer-events: none;
+
+  animation:
+    voicePulse 1.4s ease-out infinite;
+}
+
+
+@keyframes voicePulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+
+  70% {
+    opacity: 0.25;
+  }
+
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+
+/* =========================================================
+   HINT BUTTON
+   ========================================================= */
+
+.voice-hint-btn {
+  width: 34px;
+  height: 34px;
+
+  padding: 0;
+  margin: 0;
+
+  border-radius: 50%;
+
+  background: var(--mocha, #2a1a0e);
+
+  border:
+    1px solid rgba(201, 149, 108, 0.35);
+
+  color: var(--muted, #a89070);
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: none;
+
+  outline: none;
+
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    background 0.3s ease;
+
+  box-sizing: border-box;
+}
+
+
+.voice-hint-btn:hover {
+  border-color: var(--gold, #c9956c);
+
+  color: var(--gold-light, #e8c99a);
+
+  background: rgba(201, 149, 108, 0.12);
+
+  transform: scale(1.08);
+}
+
+
+/* =========================================================
+   LISTENING / FEEDBACK BUBBLE
+   ========================================================= */
+
+.voice-bubble {
+  position: relative;
+
+  width: max-content;
+
+  max-width:
+    min(
+      280px,
+      calc(100vw - 48px)
+    );
+
+  padding:
+    12px 16px;
+
+  margin: 0;
+
+  background:
+    var(--mocha, #2a1a0e);
+
+  border:
+    1px solid rgba(201, 149, 108, 0.3);
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.6);
+
+  animation:
+    voiceFadeUp 0.25s ease forwards;
+
+  pointer-events: none;
+
+  box-sizing: border-box;
+}
+
+
+/*
+ * Bubble arrow.
+ * It points toward the microphone below.
+ */
+
+.voice-bubble::after {
+  content: '';
+
+  position: absolute;
+
+  left: 26px;
+  bottom: -7px;
+
+  width: 12px;
+  height: 12px;
+
+  background:
+    var(--mocha, #2a1a0e);
+
+  border-right:
+    1px solid rgba(201, 149, 108, 0.3);
+
+  border-bottom:
+    1px solid rgba(201, 149, 108, 0.3);
+
+  transform: rotate(45deg);
+}
+
+
+/* =========================================================
+   LISTENING TEXT
+   ========================================================= */
+
+.voice-status {
+  margin: 0 0 4px;
+
+  font-family: 'DM Sans', sans-serif;
+
+  font-size: 0.72rem;
+
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+
+  color: #e0705f;
+}
+
+
+/* =========================================================
+   TRANSCRIPT
+   ========================================================= */
+
+.voice-transcript {
+  margin: 0;
+
+  font-family:
+    'Playfair Display',
+    serif;
+
+  font-style: italic;
+
+  font-size: 0.85rem;
+
+  color:
+    var(--cream, #f0e6d3);
+
+  line-height: 1.4;
+
+  word-break: break-word;
+}
+
+
+/* =========================================================
+   COMMAND FEEDBACK
+   ========================================================= */
+
+.voice-feedback {
+  margin-top: 4px;
+
+  font-family:
+    'DM Sans',
+    sans-serif;
+
+  font-size: 0.8rem;
+
+  color:
+    var(--gold-light, #e8c99a);
+
+  line-height: 1.4;
+
+  word-break: break-word;
+}
+
+
+/* =========================================================
+   HINT POPUP
+   ========================================================= */
+
+.voice-hints {
+  width: max-content;
+
+  max-width:
+    min(
+      280px,
+      calc(100vw - 48px)
+    );
+
+  padding:
+    14px 16px;
+
+  background:
+    var(--mocha, #2a1a0e);
+
+  border:
+    1px solid rgba(201, 149, 108, 0.3);
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.6);
+
+  animation:
+    voiceFadeUp 0.25s ease forwards;
+
+  pointer-events: auto;
+
+  box-sizing: border-box;
+}
+
+
+.voice-hints-title {
+  margin-bottom: 8px;
+
+  font-family:
+    'DM Sans',
+    sans-serif;
+
+  font-size: 0.68rem;
+
+  letter-spacing: 0.15em;
+
+  text-transform: uppercase;
+
+  color:
+    var(--gold, #c9956c);
+}
+
+
+.voice-hints ul {
+  list-style: none;
+
+  padding: 0;
+  margin: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 6px;
+}
+
+
+.voice-hints li {
+  font-family:
+    'DM Sans',
+    sans-serif;
+
+  font-size: 0.78rem;
+
+  color:
+    var(--muted, #a89070);
+
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+
+@keyframes voiceFadeUp {
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0);
+  }
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .voice-assistant {
+    left: 20px !important;
+
+    /*
+     * Still slightly above bottom.
+     */
+    bottom: 100px !important;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+  .voice-assistant {
+    left: 16px !important;
+
+    /*
+     * Mobile પર પણ bottom થી ઉપર.
+     */
+    bottom: 90px !important;
+
+    gap: 8px;
+  }
+
+  .voice-fab {
+    width: 54px;
+    height: 54px;
+
+    font-size: 1.25rem;
+  }
+
+  .voice-pulse-ring {
+    width: 54px;
+    height: 54px;
+
+    margin-left: -27px;
+    margin-top: -27px;
+  }
+
+  .voice-hint-btn {
+    width: 30px;
+    height: 30px;
+
+    font-size: 0.8rem;
+  }
+
+  .voice-bubble {
+    max-width:
+      calc(100vw - 32px);
+
+    padding:
+      10px 13px;
+  }
+
+  .voice-hints {
+    max-width:
+      calc(100vw - 32px);
+
+    padding:
+      11px 13px;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 400px) {
+  .voice-assistant {
+    left: 12px !important;
+    bottom: 80px !important;
+  }
+
+  .voice-fab {
+    width: 50px;
+    height: 50px;
+  }
+
+  .voice-pulse-ring {
+    width: 50px;
+    height: 50px;
+
+    margin-left: -25px;
+    margin-top: -25px;
+  }
+}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { coffeeMenu } from '../data/menuData';
 import { useFavorites } from '../hooks/useFavorites';
+import VoiceAssistant from '../Components/VoiceAssistant';
 import './Menu.css';
 
 const allCategories = ["All", ...new Set(coffeeMenu.map((item) => item.category))];
@@ -12,6 +13,13 @@ const HeartIcon = () => (
     <path d="M12 21s-6.7-4.35-9.3-8.2C.8 9.9 1.6 6.4 4.6 5.1 6.8 4.15 9 5 12 7.5 15 5 17.2 4.15 19.4 5.1c3 1.3 3.8 4.8 1.9 7.7C18.7 16.65 12 21 12 21z" />
   </svg>
 );
+
+const VOICE_HINTS = [
+  'Show cold coffee',
+  'Search cappuccino',
+  'Show my favorites',
+  'Show all',
+];
 
 const Menu = () => {
   // Read/write the category via the URL (?category=...) instead of only
@@ -29,6 +37,10 @@ const Menu = () => {
   const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+
+  // ================= SEARCH (typed + voice) =================
+  const [searchQuery, setSearchQuery] = useState('');
+
   const dotRef  = useRef(null);
   const ringRef = useRef(null);
 
@@ -65,11 +77,70 @@ const Menu = () => {
     toggleFavorite(name);
   };
 
+  // ================= VOICE COMMAND PARSER =================
+  // Returns a short string describing what happened (spoken back to
+  // the user + shown in the bubble), or null if nothing matched.
+  const handleVoiceCommand = useCallback((text) => {
+    const t = text.toLowerCase().trim();
+
+    if (t.includes('favorite')) {
+      setShowFavoritesOnly(true);
+      return 'Showing your favorites';
+    }
+
+    if (t.includes('show all') || t.includes('clear search') || t.includes('reset')) {
+      setShowFavoritesOnly(false);
+      setSearchQuery('');
+      handleCategoryClick('All');
+      return 'Showing all coffees';
+    }
+
+    // "show <category>" / plain category name, e.g. "cold coffee"
+    const matchedCategory = allCategories.find(
+      (cat) => cat !== 'All' && t.includes(cat.toLowerCase())
+    );
+    if (matchedCategory) {
+      setShowFavoritesOnly(false);
+      setSearchQuery('');
+      handleCategoryClick(matchedCategory);
+      return `Showing ${matchedCategory}`;
+    }
+
+    // "search X" / "find X"
+    const searchMatch = t.match(/^(?:search|find)\s+(.+)/);
+    if (searchMatch) {
+      const query = searchMatch[1].trim();
+      setShowFavoritesOnly(false);
+      setSearchQuery(query);
+      return `Searching for "${query}"`;
+    }
+
+    // direct item name spoken on its own — open its details modal
+    const matchedItem = coffeeMenu.find((item) => t.includes(item.name.toLowerCase()));
+    if (matchedItem) {
+      setShowFavoritesOnly(false);
+      setSearchQuery(matchedItem.name);
+      setSelectedItem(matchedItem);
+      return `Here's ${matchedItem.name}`;
+    }
+
+    // fallback: treat whatever was said as a search term
+    setShowFavoritesOnly(false);
+    setSearchQuery(t);
+    return `Searching for "${t}"`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filtered = showFavoritesOnly
     ? coffeeMenu.filter((item) => favorites.includes(item.name))
-    : activeCategory === "All"
-      ? coffeeMenu
-      : coffeeMenu.filter((item) => item.category === activeCategory);
+    : coffeeMenu.filter((item) => {
+        const inCategory = activeCategory === 'All' || item.category === activeCategory;
+        const inSearch =
+          !searchQuery ||
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.category.toLowerCase().includes(searchQuery.toLowerCase());
+        return inCategory && inSearch;
+      });
 
   const onMouseMove = useCallback((e) => {
     if (dotRef.current)  { dotRef.current.style.left  = e.clientX + 'px'; dotRef.current.style.top  = e.clientY + 'px'; }
@@ -82,11 +153,16 @@ const Menu = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    const hoverTargets = document.querySelectorAll('button, .menu-card, .filter-btn, .fav-btn');
+    // Added .voice-fab / .voice-hint-btn / .search-clear-btn so the
+    // custom cursor ring reacts to the new controls the same way it
+    // already does for every other button on the page.
+    const hoverTargets = document.querySelectorAll(
+      'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn'
+    );
     hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
 
-    // This observer re-runs whenever activeCategory/showFavoritesOnly changes,
-    // so switching filters re-observes the new set of .menu-card.fade-in
+    // This observer re-runs whenever activeCategory/showFavoritesOnly/searchQuery
+    // changes, so switching filters re-observes the new set of .menu-card.fade-in
     // elements and reveals them.
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
@@ -99,7 +175,7 @@ const Menu = () => {
       hoverTargets.forEach(el => { el.removeEventListener('mouseenter', addHover); el.removeEventListener('mouseleave', rmvHover); });
       observer.disconnect();
     };
-  }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly]);
+  }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly, searchQuery]);
 
   // close modal on Escape key
   useEffect(() => {
@@ -141,12 +217,30 @@ const Menu = () => {
             <h2>Explore All <em>Coffees</em></h2>
           </div>
 
+          {/* Type-to-search bar — voice search fills this same state,
+              so typed and spoken search behave identically. */}
+          <div className="search-bar-wrap fade-in">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search coffees… or tap the mic"
+              value={searchQuery}
+              onChange={(e) => { setShowFavoritesOnly(false); setSearchQuery(e.target.value); }}
+            />
+            {searchQuery && (
+              <button className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                ✕
+              </button>
+            )}
+          </div>
+
           <div className="filter-bar fade-in">
             {allCategories.map((cat) => (
               <button
                 key={cat}
                 className={`filter-btn ${!showFavoritesOnly && activeCategory === cat ? 'active' : ''}`}
-                onClick={() => handleCategoryClick(cat)}
+                onClick={() => { setSearchQuery(''); handleCategoryClick(cat); }}
               >
                 <span>{cat}</span>
               </button>
@@ -161,9 +255,13 @@ const Menu = () => {
 
           {filtered.length === 0 ? (
             <div className="wishlist-empty fade-in">
-              <div className="wishlist-empty-icon">♡</div>
-              <h3>No favorites yet</h3>
-              <p>Tap the heart on any coffee to save it here.</p>
+              <div className="wishlist-empty-icon">{showFavoritesOnly ? '♡' : '☕'}</div>
+              <h3>{showFavoritesOnly ? 'No favorites yet' : 'No coffees found'}</h3>
+              <p>
+                {showFavoritesOnly
+                  ? 'Tap the heart on any coffee to save it here.'
+                  : 'Try a different search term or say "show all".'}
+              </p>
             </div>
           ) : (
             <div className="menu-grid">
@@ -249,6 +347,8 @@ const Menu = () => {
           </div>
         </div>
       )}
+
+      <VoiceAssistant onCommand={handleVoiceCommand} hints={VOICE_HINTS} />
 
     </div>
   );
