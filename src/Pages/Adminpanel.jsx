@@ -7,9 +7,7 @@ import React, {
 } from "react";
 
 import { useNavigate } from "react-router-dom";
-
 import { onAuthStateChanged, signOut } from "firebase/auth";
-
 import {
   doc,
   getDoc,
@@ -26,16 +24,13 @@ import {
 } from "firebase/firestore";
 
 import Chart from "chart.js/auto";
-
 import { auth, db } from "../firebase";
 import { coffeeMenu } from "../data/menuData";
-
 import "./Adminpanel.css";
 
 /* ============================================================
    CONSTANTS
 ============================================================ */
-
 const DEFAULT_ADMIN_EMAIL = "adminkaka@levelupbrew.in";
 
 const ORDER_STATUSES = [
@@ -52,12 +47,10 @@ const BATCH_CHUNK_SIZE = 450;
 /* ============================================================
    HELPERS
 ============================================================ */
-
 const shortUid = (uid) => (uid ? `${uid.slice(0, 8)}…` : "—");
 
 const formatCustomization = (c) => {
   if (!c) return null;
-
   return [
     c.size,
     c.milk,
@@ -73,20 +66,15 @@ const formatCustomization = (c) => {
 /* ============================================================
    INVENTORY HELPERS
 ============================================================ */
-
 const getStock = (item) => {
   const stock = Number(item?.stock);
-  if (!Number.isFinite(stock) || stock < 0) {
-    return 0;
-  }
+  if (!Number.isFinite(stock) || stock < 0) return 0;
   return Math.floor(stock);
 };
 
 const getLowStockAt = (item) => {
   const value = Number(item?.lowStockAt);
-  if (!Number.isFinite(value) || value < 0) {
-    return 5;
-  }
+  if (!Number.isFinite(value) || value < 0) return 5;
   return Math.floor(value);
 };
 
@@ -98,42 +86,28 @@ const getReorderLevel = (item) => {
 const getInventoryStatus = (item) => {
   const stock = getStock(item);
   const threshold = getLowStockAt(item);
-
-  if (stock <= 0) {
-    return "out";
-  }
-  if (stock <= threshold) {
-    return "low";
-  }
+  if (stock <= 0) return "out";
+  if (stock <= threshold) return "low";
   return "healthy";
 };
 
 const getInventoryStatusLabel = (item) => {
   const status = getInventoryStatus(item);
-  if (status === "out") {
-    return "OUT OF STOCK";
-  }
-  if (status === "low") {
-    return "LOW STOCK";
-  }
+  if (status === "out") return "OUT OF STOCK";
+  if (status === "low") return "LOW STOCK";
   return "IN STOCK";
 };
 
 const getInventoryStatusClass = (item) => {
   const status = getInventoryStatus(item);
-  if (status === "out") {
-    return "inventory-status-out";
-  }
-  if (status === "low") {
-    return "inventory-status-low";
-  }
+  if (status === "out") return "inventory-status-out";
+  if (status === "low") return "inventory-status-low";
   return "inventory-status-healthy";
 };
 
 /* ============================================================
    ADMIN PANEL
 ============================================================ */
-
 const AdminPanel = () => {
   const navigate = useNavigate();
 
@@ -190,14 +164,10 @@ const AdminPanel = () => {
   useEffect(() => {
     document.addEventListener("mousemove", onMouseMove);
     const handleMouseOver = (e) => {
-      if (e.target.closest("button, a, input, select")) {
-        addHover();
-      }
+      if (e.target.closest("button, a, input, select")) addHover();
     };
     const handleMouseOut = (e) => {
-      if (e.target.closest("button, a, input, select")) {
-        rmvHover();
-      }
+      if (e.target.closest("button, a, input, select")) rmvHover();
     };
 
     document.addEventListener("mouseover", handleMouseOver);
@@ -220,7 +190,8 @@ const AdminPanel = () => {
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         const role = snap.exists() ? snap.data().role : null;
-        const isDefaultAdmin = user.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+        const isDefaultAdmin =
+          user.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
 
         if (role === "admin" || isDefaultAdmin) {
           if (isDefaultAdmin && role !== "admin") {
@@ -251,7 +222,8 @@ const AdminPanel = () => {
       (snap) => {
         const role = snap.exists() ? snap.data().role : null;
         const email = snap.exists() ? snap.data().email : "";
-        const isDefaultAdmin = email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+        const isDefaultAdmin =
+          email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
 
         if (role !== "admin" && !isDefaultAdmin) {
           signOut(auth).finally(() => navigate("/"));
@@ -563,7 +535,10 @@ const AdminPanel = () => {
 
   const updateUserRole = async (uid, role) => {
     const targetUser = users.find((u) => u.id === uid);
-    if (targetUser?.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase() && role !== "admin") {
+    if (
+      targetUser?.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase() &&
+      role !== "admin"
+    ) {
       alert("Primary admin role cannot be changed.");
       return;
     }
@@ -1088,16 +1063,39 @@ const AdminPanel = () => {
                             const customTag = formatCustomization(
                               i.customization,
                             );
+                            // Fallback to menuItems if img was not saved in Firestore
+                            const itemImage =
+                              i.img ||
+                              menuItems.find(
+                                (m) =>
+                                  m.id === (i.baseId || i.id) ||
+                                  m.name?.toLowerCase().trim() ===
+                                    i.name?.toLowerCase().trim(),
+                              )?.img;
+
                             return (
                               <div key={idx} className="admin-order-item-line">
-                                <span>
-                                  {i.name} ×{i.qty}
-                                </span>
-                                {customTag && (
-                                  <div className="admin-subtext admin-customization-tag">
-                                    {customTag}
+                                {itemImage ? (
+                                  <img
+                                    src={itemImage}
+                                    alt={i.name}
+                                    className="admin-order-item-thumb"
+                                  />
+                                ) : (
+                                  <div className="admin-order-item-placeholder">
+                                    ☕
                                   </div>
                                 )}
+                                <div className="admin-order-item-details">
+                                  <span className="admin-order-item-name">
+                                    {i.name} <strong>×{i.qty}</strong>
+                                  </span>
+                                  {customTag && (
+                                    <div className="admin-subtext admin-customization-tag">
+                                      {customTag}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -1262,7 +1260,10 @@ const AdminPanel = () => {
                     }
                   />
                 </div>
-                <button type="submit" className="primary-btn admin-add-submit-btn">
+                <button
+                  type="submit"
+                  className="primary-btn admin-add-submit-btn"
+                >
                   <span>Add Item</span>
                 </button>
               </div>
@@ -1923,7 +1924,9 @@ const AdminPanel = () => {
                   </thead>
                   <tbody>
                     {users.map((u) => {
-                      const isDefaultAdmin = u.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+                      const isDefaultAdmin =
+                        u.email?.toLowerCase() ===
+                        DEFAULT_ADMIN_EMAIL.toLowerCase();
 
                       return (
                         <tr key={u.id}>
@@ -1957,7 +1960,9 @@ const AdminPanel = () => {
                           <td>
                             <select
                               className="admin-select"
-                              value={isDefaultAdmin ? "admin" : (u.role || "customer")}
+                              value={
+                                isDefaultAdmin ? "admin" : u.role || "customer"
+                              }
                               disabled={isDefaultAdmin}
                               onChange={(e) =>
                                 updateUserRole(u.id, e.target.value)

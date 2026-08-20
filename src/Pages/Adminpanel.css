@@ -76,7 +76,9 @@
   border: 1px solid rgba(201, 149, 108, 0.18);
   border-radius: 999px;
   padding: 0.15rem 0.15rem 0.15rem 1.1rem;
-  transition: border-color 0.3s ease, background 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease;
 }
 
 .nav-search:focus-within {
@@ -91,7 +93,7 @@
   border: none;
   outline: none;
   color: #e0c9a6;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 0.88rem;
   padding: 0.55rem 0;
 }
@@ -112,7 +114,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.25s ease, transform 0.25s ease;
+  transition:
+    background 0.25s ease,
+    transform 0.25s ease;
 }
 
 .nav-search-btn:hover {
@@ -148,7 +152,7 @@
 }
 
 .nav-link::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 0;
   height: 2px;
@@ -275,7 +279,7 @@
   font-size: 0.9rem;
   font-weight: 700;
   color: #2c221d;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
 }
 
 .user-name {
@@ -298,7 +302,7 @@
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.25s ease;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   white-space: nowrap;
 }
 
@@ -337,7 +341,10 @@
 }
 
 .wishlist-icon-link svg {
-  transition: transform 0.3s ease, fill 0.3s ease, stroke 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease;
 }
 
 .wishlist-icon-link:hover {
@@ -386,8 +393,14 @@
 }
 
 @keyframes badgePop {
-  0%   { transform: scale(0.4); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ── Mega Dropdown ── */
@@ -435,9 +448,10 @@
   transform: translateY(-14px);
   pointer-events: none;
   visibility: hidden;
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.35s;
+  transition:
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.35s;
 }
 
 .mega-dropdown.open {
@@ -499,13 +513,15 @@
   text-decoration: none;
   font-size: 0.98rem;
   font-weight: 500;
-  transition: color 0.25s ease, transform 0.25s ease;
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
   width: fit-content;
   position: relative;
 }
 
 .mega-link::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -14px;
   top: 50%;
@@ -531,7 +547,11 @@
 }
 
 .mega-featured-card {
-  background: linear-gradient(160deg, rgba(212, 163, 115, 0.14), rgba(212, 163, 115, 0.04));
+  background: linear-gradient(
+    160deg,
+    rgba(212, 163, 115, 0.14),
+    rgba(212, 163, 115, 0.04)
+  );
   border: 1px solid rgba(201, 149, 108, 0.25);
   border-radius: 14px;
   padding: 1.4rem;
@@ -544,7 +564,11 @@
 }
 
 .mega-featured-card:hover {
-  background: linear-gradient(160deg, rgba(212, 163, 115, 0.22), rgba(212, 163, 115, 0.08));
+  background: linear-gradient(
+    160deg,
+    rgba(212, 163, 115, 0.22),
+    rgba(212, 163, 115, 0.08)
+  );
   border-color: rgba(212, 163, 115, 0.5);
   transform: translateY(-4px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
@@ -575,15 +599,27 @@
 }
 
 @keyframes steam {
-  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.7; }
-  50%      { transform: translateY(-8px) rotate(5deg); opacity: 1; }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) rotate(5deg);
+    opacity: 1;
+  }
 }
 
 @keyframes fadeInDown {
-  0%   { opacity: 0; transform: translateY(-40px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-
 
 /* =========================================================
    ADMIN PANEL - PREMIUM DARK / WARM GOLD THEME
@@ -594,11 +630,19 @@
   width: 100%;
   padding-top: 78px; /* Navbar space */
   background:
-    radial-gradient(circle at 10% 20%, rgba(201, 149, 108, 0.08), transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(212, 163, 115, 0.05), transparent 40%),
+    radial-gradient(
+      circle at 10% 20%,
+      rgba(201, 149, 108, 0.08),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 90% 80%,
+      rgba(212, 163, 115, 0.05),
+      transparent 40%
+    ),
     #140e0b;
   color: #e0c9a6;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   overflow-x: hidden;
 }
 
@@ -2009,4 +2053,59 @@
 .admin-add-submit-btn {
   height: 42px;
   align-self: flex-end;
+}
+/* ── Order Table Product Image & Layout ── */
+.admin-order-item-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-order-item-line:last-child {
+  margin-bottom: 0;
+}
+
+.admin-order-item-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  background: rgba(20, 14, 11, 0.8);
+  flex-shrink: 0;
+}
+
+.admin-order-item-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(201, 149, 108, 0.1);
+  border: 1px solid rgba(201, 149, 108, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.admin-order-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-order-item-name {
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.88rem;
+}
+
+.admin-order-item-name strong {
+  color: #d4a373;
+}
+
+.admin-customization-tag {
+  font-size: 0.74rem;
+  color: #a89070;
 }
