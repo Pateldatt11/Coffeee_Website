@@ -103,6 +103,35 @@ const OrderOnline = () => {
   const [tokens, setTokens] = useState(0);
   const [useTokens, setUseTokens] = useState(false);
 
+  // ================= MIC (voice search inside search bar) =================
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const startVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Voice search is not supported on this browser. Please type instead.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setSearchQuery(transcript);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   useEffect(() => {
     if (!user) { setWallet(0); setTokens(0); return; }
     const unsub = onSnapshot(
@@ -262,7 +291,7 @@ const OrderOnline = () => {
     document.addEventListener('mousemove', onMouseMove);
 
     const hoverTargets = document.querySelectorAll(
-      'button, a, .order-card, .filter-btn, .payment-option, .voice-fab, .voice-hint-btn, .search-clear-btn'
+      'button, a, .order-card, .filter-btn, .payment-option, .voice-fab, .voice-hint-btn, .search-clear-btn, .mic-btn'
     );
     hoverTargets.forEach(el => {
       el.addEventListener('mouseenter', addHover);
@@ -725,7 +754,7 @@ const OrderOnline = () => {
             <input
               type="text"
               className="search-input"
-              placeholder="Search coffees… or tap the mic"
+              placeholder={isListening ? 'Listening…' : 'Search coffees… or tap the mic'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -734,6 +763,14 @@ const OrderOnline = () => {
                 ✕
               </button>
             )}
+            <button
+              className={`mic-btn ${isListening ? 'listening' : ''}`}
+              onClick={startVoiceSearch}
+              aria-label="Search by voice"
+              type="button"
+            >
+              🎤
+            </button>
           </div>
 
           <div className="filter-bar fade-in">

@@ -41,6 +41,36 @@ const Menu = () => {
   // ================= SEARCH (typed + voice) =================
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ================= MIC (voice search inside search bar) =================
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const startVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Voice search is not supported on this browser. Please type instead.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setShowFavoritesOnly(false);
+      setSearchQuery(transcript);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const dotRef  = useRef(null);
   const ringRef = useRef(null);
 
@@ -153,11 +183,11 @@ const Menu = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    // Added .voice-fab / .voice-hint-btn / .search-clear-btn so the
+    // Added .voice-fab / .voice-hint-btn / .search-clear-btn / .mic-btn so the
     // custom cursor ring reacts to the new controls the same way it
     // already does for every other button on the page.
     const hoverTargets = document.querySelectorAll(
-      'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn'
+      'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn, .mic-btn'
     );
     hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
 
@@ -224,7 +254,7 @@ const Menu = () => {
             <input
               type="text"
               className="search-input"
-              placeholder="Search coffees… or tap the mic"
+              placeholder={isListening ? 'Listening…' : 'Search coffees… or tap the mic'}
               value={searchQuery}
               onChange={(e) => { setShowFavoritesOnly(false); setSearchQuery(e.target.value); }}
             />
@@ -233,6 +263,14 @@ const Menu = () => {
                 ✕
               </button>
             )}
+            <button
+              className={`mic-btn ${isListening ? 'listening' : ''}`}
+              onClick={startVoiceSearch}
+              aria-label="Search by voice"
+              type="button"
+            >
+              🎤
+            </button>
           </div>
 
           <div className="filter-bar fade-in">
