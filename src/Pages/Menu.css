@@ -394,6 +394,77 @@
   line-height: 1.5;
   color: #444;
 }
+
+/* ══════════════════════════════════════════════
+   Add to Cart / Buy Now — inside the details modal.
+   Same gold theme + clip-path pill shape + hover
+   transition curve as every other button on this
+   page (.wishlist-add-cart-btn / .wishlist-add-all-btn),
+   just recolored for the modal's light background.
+   ══════════════════════════════════════════════ */
+
+.details-actions {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+  padding-top: 1.2rem;
+  border-top: 1px dashed rgba(201, 149, 108, 0.35);
+}
+
+.details-add-cart-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0.8rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1.5px solid var(--gold);
+  color: #b5651d;
+  cursor: pointer;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: all 0.3s var(--transition);
+}
+.details-add-cart-btn:hover {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.details-add-cart-btn.added {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+.details-buy-now-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0.8rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--gold);
+  border: 1.5px solid var(--gold);
+  color: #1a1005;
+  cursor: pointer;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  transition: all 0.3s var(--transition);
+}
+.details-buy-now-btn:hover {
+  background: transparent;
+  color: #b5651d;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 420px) {
+  .details-actions { flex-direction: column; }
+}
+
 .section-tag::before {
   content: '';
   display: inline-block;

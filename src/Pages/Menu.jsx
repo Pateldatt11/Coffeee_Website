@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { coffeeMenu } from '../data/menuData';
 import { useFavorites } from '../hooks/useFavorites';
 import VoiceAssistant from '../Components/VoiceAssistant';
@@ -21,6 +21,12 @@ const VOICE_HINTS = [
   'Show all',
 ];
 
+// Same keys OrderOnline.jsx reads from on mount — pushing to these here
+// is how a coffee picked from the Menu's details modal ends up in the
+// cart on the /order page.
+const PENDING_CART_KEY = 'brewhaven_pending_cart_item';
+const PENDING_WISHLIST_CART_KEY = 'brewhaven_pending_wishlist_cart_items';
+
 const Menu = () => {
   // Read/write the category via the URL (?category=...) instead of only
   // local state. This is what makes the Nav mega-menu links actually work:
@@ -28,6 +34,7 @@ const Menu = () => {
   // the URL, so clicking a category link from Nav landed on /menu but
   // never filtered anything.
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const getCategoryFromUrl = () => {
     const cat = searchParams.get('category');
@@ -37,6 +44,12 @@ const Menu = () => {
   const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+
+  // Tracks which item(s) just got an "Add to Cart" tap, so the button can
+  // flash a brief "✓ Added" confirmation (same pattern as the wishlist
+  // page's .wishlist-add-cart-btn.added state).
+  const [addedMap, setAddedMap] = useState({});
+  const addedTimers = useRef({});
 
   // ================= SEARCH (typed + voice) =================
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,6 +119,59 @@ const Menu = () => {
     e.stopPropagation(); // don't open the details modal
     toggleFavorite(name);
   };
+
+  // ================= ADD TO CART / BUY NOW (from details modal) =================
+  const handleAddToCart = (item) => {
+    try {
+      const existingRaw = localStorage.getItem(PENDING_WISHLIST_CART_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      existing.push({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        price: item.price,
+        img: item.img,
+      });
+      localStorage.setItem(PENDING_WISHLIST_CART_KEY, JSON.stringify(existing));
+    } catch (err) {
+      console.error('Could not queue item for cart:', err);
+      return;
+    }
+
+    // Flash "✓ Added" on the button, then reset it after a bit.
+    if (addedTimers.current[item.name]) clearTimeout(addedTimers.current[item.name]);
+    setAddedMap((prev) => ({ ...prev, [item.name]: true }));
+    addedTimers.current[item.name] = setTimeout(() => {
+      setAddedMap((prev) => ({ ...prev, [item.name]: false }));
+    }, 1800);
+  };
+
+  const handleBuyNow = (item) => {
+    try {
+      localStorage.setItem(
+        PENDING_CART_KEY,
+        JSON.stringify({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          img: item.img,
+          qty: 1,
+        })
+      );
+    } catch (err) {
+      console.error('Could not queue item for checkout:', err);
+    }
+    setSelectedItem(null);
+    navigate('/order');
+  };
+
+  useEffect(() => {
+    const timers = addedTimers.current;
+    return () => {
+      Object.values(timers).forEach((t) => clearTimeout(t));
+    };
+  }, []);
 
   // ================= VOICE COMMAND PARSER =================
   // Returns a short string describing what happened (spoken back to
@@ -185,7 +251,9 @@ const Menu = () => {
 
     // Added .voice-fab / .voice-hint-btn / .search-clear-btn / .mic-btn so the
     // custom cursor ring reacts to the new controls the same way it
-    // already does for every other button on the page.
+    // already does for every other button on the page. Note: any plain
+    // <button> (like the new Add to Cart / Buy Now in the modal) is
+    // already covered by the generic 'button' selector below.
     const hoverTargets = document.querySelectorAll(
       'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn, .mic-btn'
     );
@@ -381,6 +449,21 @@ const Menu = () => {
               {selectedItem.description && (
                 <p className="details-description">{selectedItem.description}</p>
               )}
+
+              <div className="details-actions">
+                <button
+                  className={`details-add-cart-btn ${addedMap[selectedItem.name] ? 'added' : ''}`}
+                  onClick={() => handleAddToCart(selectedItem)}
+                >
+                  {addedMap[selectedItem.name] ? '✓ Added to Cart' : '🛒 Add to Cart'}
+                </button>
+                <button
+                  className="details-buy-now-btn"
+                  onClick={() => handleBuyNow(selectedItem)}
+                >
+                  Buy Now →
+                </button>
+              </div>
             </div>
           </div>
         </div>
