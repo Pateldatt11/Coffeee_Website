@@ -1983,3 +1983,30 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+.admin-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.admin-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 140px;
+}
+
+.admin-input-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #c9956c;
+  font-weight: 600;
+}
+
+.admin-add-submit-btn {
+  height: 42px;
+  align-self: flex-end;
+}
