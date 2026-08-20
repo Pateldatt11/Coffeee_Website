@@ -70,6 +70,25 @@ const rewardStyles = {
     marginTop: '0.6rem',
     cursor: 'pointer',
   },
+  // ── NEW: wrapper for the per-tier radio choices shown once
+  // "Redeem tokens on this order" is checked ──
+  tierChoiceWrap: {
+    marginTop: '0.7rem',
+    paddingLeft: '0.2rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.45rem',
+    borderLeft: '2px solid rgba(201, 149, 108, 0.25)',
+    paddingLeft: '0.9rem',
+  },
+  tierOption: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    fontSize: '0.85rem',
+    color: '#cbb89a',
+    cursor: 'pointer',
+  },
   summary: {
     marginTop: '0.8rem',
     paddingTop: '0.8rem',
@@ -102,6 +121,11 @@ const OrderOnline = () => {
   const [wallet, setWallet] = useState(0);
   const [tokens, setTokens] = useState(0);
   const [useTokens, setUseTokens] = useState(false);
+  // ── NEW: which tier (by its `min` value) the user has chosen to
+  // redeem right now. Defaults to the highest unlocked tier, but the
+  // user can pick a lower one, or leave useTokens off entirely to
+  // keep saving toward 2000. ──
+  const [selectedTierMin, setSelectedTierMin] = useState(null);
 
   // ================= MIC (voice search inside search bar) =================
   const [isListening, setIsListening] = useState(false);
@@ -147,6 +171,20 @@ const OrderOnline = () => {
     );
     return () => unsub();
   }, [user]);
+
+  // ── NEW: keep selectedTierMin valid whenever the token balance
+  // changes. If the previously-selected tier is no longer unlocked
+  // (or nothing was selected yet), default to the highest tier the
+  // user currently qualifies for. ──
+  useEffect(() => {
+    const avail = TOKEN_TIERS.filter((t) => tokens >= t.min);
+    if (avail.length === 0) {
+      setSelectedTierMin(null);
+      return;
+    }
+    const minValues = avail.map((t) => t.min);
+    setSelectedTierMin((prev) => (minValues.includes(prev) ? prev : Math.max(...minValues)));
+  }, [tokens]);
 
   // ================= MENU (LIVE FROM FIRESTORE) =================
   const [menuItems, setMenuItems] = useState([]);
@@ -398,9 +436,22 @@ const OrderOnline = () => {
     return live ? getItemStock(live) <= 0 : false;
   });
 
-  const bestTier = TOKEN_TIERS.find(t => tokens >= t.min) || null;
-  const tokenDiscountAmount = (useTokens && bestTier)
-    ? Math.round((totalPrice * bestTier.percent) / 100)
+  // ── All tiers the user currently qualifies for, ascending
+  // (500 → 1000 → 1500 → 2000) so they render in a natural order. ──
+  const availableTiers = TOKEN_TIERS
+    .filter(t => tokens >= t.min)
+    .sort((a, b) => a.min - b.min);
+
+  const bestTier = availableTiers.length > 0 ? availableTiers[availableTiers.length - 1] : null;
+
+  // ── The tier the user has actually chosen to redeem right now.
+  // null when useTokens is off (i.e. they're choosing to save up). ──
+  const chosenTier = useTokens
+    ? (availableTiers.find(t => t.min === selectedTierMin) || bestTier)
+    : null;
+
+  const tokenDiscountAmount = chosenTier
+    ? Math.round((totalPrice * chosenTier.percent) / 100)
     : 0;
   const afterTokenDiscount = Math.max(0, totalPrice - tokenDiscountAmount);
   const walletApplied = Math.min(wallet, afterTokenDiscount);
@@ -585,7 +636,9 @@ const OrderOnline = () => {
     }
 
     if (user) {
-      const tierTokensSpent = (useTokens && bestTier) ? bestTier.cost : 0;
+      // Tokens actually spent = whichever tier the user chose to
+      // redeem (chosenTier), not blindly the highest unlocked one.
+      const tierTokensSpent = chosenTier ? chosenTier.cost : 0;
       try {
         await updateDoc(doc(db, 'users', user.uid), {
           wallet: increment(-walletApplied),
@@ -1018,18 +1071,45 @@ const OrderOnline = () => {
                       </div>
                     )}
 
-                    {bestTier ? (
-                      <label style={rewardStyles.toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={useTokens}
-                          onChange={(e) => setUseTokens(e.target.checked)}
-                        />
-                        <span>Use {bestTier.cost} tokens for {bestTier.label}</span>
-                      </label>
+                    {availableTiers.length > 0 ? (
+                      <>
+                        <label style={rewardStyles.toggleLabel}>
+                          <input
+                            type="checkbox"
+                            checked={useTokens}
+                            onChange={(e) => setUseTokens(e.target.checked)}
+                          />
+                          <span>Redeem tokens on this order</span>
+                        </label>
+
+                        {/* Let the user pick WHICH unlocked tier to redeem,
+                            instead of always forcing the highest one — so
+                            they can choose to cash in now at a lower tier,
+                            or leave the box unchecked and keep saving
+                            toward Free Coffee at 2000. */}
+                        {useTokens && (
+                          <div style={rewardStyles.tierChoiceWrap}>
+                            <p style={rewardStyles.note}>Choose which reward to redeem now:</p>
+                            {availableTiers.map((t) => (
+                              <label key={t.min} style={rewardStyles.tierOption}>
+                                <input
+                                  type="radio"
+                                  name="tokenTier"
+                                  checked={selectedTierMin === t.min}
+                                  onChange={() => setSelectedTierMin(t.min)}
+                                />
+                                <span>{t.label}</span>
+                              </label>
+                            ))}
+                            <p style={rewardStyles.note}>
+                              Tip: uncheck above to keep saving — up to 2000 tokens for a Free Coffee.
+                            </p>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p style={rewardStyles.note}>
-                        Earn 5 tokens per coffee — 500 tokens unlocks 10% off.
+                        Earn 5 tokens per coffee — 500 tokens unlocks 10% off. Save up to 2000 for a free coffee!
                       </p>
                     )}
 
