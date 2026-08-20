@@ -36,6 +36,8 @@ import "./Adminpanel.css";
    CONSTANTS
 ============================================================ */
 
+const DEFAULT_ADMIN_EMAIL = "adminkaka@levelupbrew.in";
+
 const ORDER_STATUSES = [
   "placed",
   "preparing",
@@ -218,8 +220,12 @@ const AdminPanel = () => {
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         const role = snap.exists() ? snap.data().role : null;
+        const isDefaultAdmin = user.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
 
-        if (role === "admin") {
+        if (role === "admin" || isDefaultAdmin) {
+          if (isDefaultAdmin && role !== "admin") {
+            await updateDoc(doc(db, "users", user.uid), { role: "admin" });
+          }
           setAuthorized(true);
           setAdminUid(user.uid);
           setAdminEmail(user.email || "");
@@ -244,7 +250,10 @@ const AdminPanel = () => {
       doc(db, "users", adminUid),
       (snap) => {
         const role = snap.exists() ? snap.data().role : null;
-        if (role !== "admin") {
+        const email = snap.exists() ? snap.data().email : "";
+        const isDefaultAdmin = email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+
+        if (role !== "admin" && !isDefaultAdmin) {
           signOut(auth).finally(() => navigate("/"));
         }
       },
@@ -553,6 +562,12 @@ const AdminPanel = () => {
   };
 
   const updateUserRole = async (uid, role) => {
+    const targetUser = users.find((u) => u.id === uid);
+    if (targetUser?.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase() && role !== "admin") {
+      alert("Primary admin role cannot be changed.");
+      return;
+    }
+
     if (uid === adminUid && role !== "admin") {
       const ok = window.confirm(
         "You're about to remove your own admin access. You will be logged out. Continue?",
@@ -1178,59 +1193,77 @@ const AdminPanel = () => {
             <form className="admin-add-form" onSubmit={handleAddItem}>
               <p className="section-tag">Add New Item</p>
               <div className="admin-form-row">
-                <input
-                  placeholder="Name"
-                  value={newItem.name}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, name: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Category"
-                  value={newItem.category}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, category: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newItem.price}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, price: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Stock"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={newItem.stock}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, stock: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Low Stock At"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={newItem.lowStockAt}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, lowStockAt: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Image URL"
-                  value={newItem.img}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, img: e.target.value })
-                  }
-                />
-                <button type="submit" className="primary-btn">
-                  <span>Add</span>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Item Name</label>
+                  <input
+                    placeholder="e.g. Hazelnut Latte"
+                    value={newItem.name}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Category</label>
+                  <input
+                    placeholder="e.g. Hot Coffee"
+                    value={newItem.category}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, category: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Price (₹)</label>
+                  <input
+                    placeholder="Price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newItem.price}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, price: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Stock (Units)</label>
+                  <input
+                    placeholder="Stock"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newItem.stock}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, stock: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Low Stock Alert</label>
+                  <input
+                    placeholder="Alert threshold"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newItem.lowStockAt}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, lowStockAt: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="admin-input-group">
+                  <label className="admin-input-label">Product Image URL</label>
+                  <input
+                    placeholder="https://..."
+                    value={newItem.img}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, img: e.target.value })
+                    }
+                  />
+                </div>
+                <button type="submit" className="primary-btn admin-add-submit-btn">
+                  <span>Add Item</span>
                 </button>
               </div>
             </form>
@@ -1889,49 +1922,54 @@ const AdminPanel = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id}>
-                        <td>{u.name || "—"}</td>
-                        <td>{u.email}</td>
-                        <td>{u.provider}</td>
-                        <td>
-                          <button
-                            className="admin-inline-input"
-                            style={{ cursor: "pointer", textAlign: "left" }}
-                            title="Click to edit wallet balance"
-                            onClick={() => adjustUserWallet(u)}
-                          >
-                            ₹{u.wallet ?? 0}
-                          </button>
-                        </td>
-                        <td>
-                          <button
-                            className="admin-inline-input"
-                            style={{ cursor: "pointer", textAlign: "left" }}
-                            title="Click to edit token balance"
-                            onClick={() => adjustUserTokens(u)}
-                          >
-                            {u.tokens ?? 0}
-                          </button>
-                        </td>
-                        <td>{u.referralCount ?? 0}</td>
-                        <td className="admin-subtext">
-                          {shortUid(u.referredBy)}
-                        </td>
-                        <td>
-                          <select
-                            className="admin-select"
-                            value={u.role || "customer"}
-                            onChange={(e) =>
-                              updateUserRole(u.id, e.target.value)
-                            }
-                          >
-                            <option value="customer">customer</option>
-                            <option value="admin">admin</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map((u) => {
+                      const isDefaultAdmin = u.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+
+                      return (
+                        <tr key={u.id}>
+                          <td>{u.name || "—"}</td>
+                          <td>{u.email}</td>
+                          <td>{u.provider}</td>
+                          <td>
+                            <button
+                              className="admin-inline-input"
+                              style={{ cursor: "pointer", textAlign: "left" }}
+                              title="Click to edit wallet balance"
+                              onClick={() => adjustUserWallet(u)}
+                            >
+                              ₹{u.wallet ?? 0}
+                            </button>
+                          </td>
+                          <td>
+                            <button
+                              className="admin-inline-input"
+                              style={{ cursor: "pointer", textAlign: "left" }}
+                              title="Click to edit token balance"
+                              onClick={() => adjustUserTokens(u)}
+                            >
+                              {u.tokens ?? 0}
+                            </button>
+                          </td>
+                          <td>{u.referralCount ?? 0}</td>
+                          <td className="admin-subtext">
+                            {shortUid(u.referredBy)}
+                          </td>
+                          <td>
+                            <select
+                              className="admin-select"
+                              value={isDefaultAdmin ? "admin" : (u.role || "customer")}
+                              disabled={isDefaultAdmin}
+                              onChange={(e) =>
+                                updateUserRole(u.id, e.target.value)
+                              }
+                            >
+                              <option value="customer">customer</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
