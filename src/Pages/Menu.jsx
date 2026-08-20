@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import { coffeeMenu } from '../data/menuData';
 import { useFavorites } from '../hooks/useFavorites';
 import VoiceAssistant from '../Components/VoiceAssistant';
 import './Menu.css';
-
-const allCategories = ["All", ...new Set(coffeeMenu.map((item) => item.category))];
 
 // Small reusable heart icon — outline by default, filled when active.
 const HeartIcon = () => (
@@ -36,10 +36,39 @@ const Menu = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const getCategoryFromUrl = () => {
-    const cat = searchParams.get('category');
-    return cat && allCategories.includes(cat) ? cat : 'All';
-  };
+  // ================= LIVE MENU (FROM FIRESTORE) =================
+  // Same live source OrderOnline.jsx and AdminPanel already use, so
+  // new items added from the Admin Panel — and stock changes from every
+  // order — show up here in real time, with the SAME document IDs.
+  const [menuItems, setMenuItems] = useState([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'menu'),
+      (snap) => {
+        if (!snap.empty) {
+          setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        } else {
+          // Fallback only kicks in if Firestore's menu collection is
+          // genuinely empty (e.g. before the admin has imported/added
+          // anything yet).
+          setMenuItems(
+            coffeeMenu.map((item, index) => ({
+              id: String(index + 1),
+              stock: 10,
+              ...item,
+            }))
+          );
+        }
+      },
+      (err) => console.error('Menu listener error:', err)
+    );
+    return () => unsub();
+  }, []);
+
+  const allCategories = ['All', ...new Set(menuItems.map((i) => i.category).filter(Boolean))];
+
+  const getCategoryFromUrl = () => searchParams.get('category') || 'All';
 
   const [activeCategory, setActiveCategory] = useState(getCategoryFromUrl);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -120,8 +149,16 @@ const Menu = () => {
     toggleFavorite(name);
   };
 
+  // Helper: Get sanitized numeric stock from a live menu item.
+  const getItemStock = (item) => {
+    const s = Number(item?.stock);
+    return Number.isFinite(s) ? Math.floor(s) : 0;
+  };
+
   // ================= ADD TO CART / BUY NOW (from details modal) =================
   const handleAddToCart = (item) => {
+    if (getItemStock(item) <= 0) return;
+
     try {
       const existingRaw = localStorage.getItem(PENDING_WISHLIST_CART_KEY);
       const existing = existingRaw ? JSON.parse(existingRaw) : [];
@@ -147,6 +184,8 @@ const Menu = () => {
   };
 
   const handleBuyNow = (item) => {
+    if (getItemStock(item) <= 0) return;
+
     try {
       localStorage.setItem(
         PENDING_CART_KEY,
@@ -174,10 +213,17 @@ const Menu = () => {
   }, []);
 
   // ================= VOICE COMMAND PARSER =================
+  // Keeps the latest menuItems/allCategories/favorites in a ref so the
+  // callback (registered once, empty deps) never reads stale data —
+  // same pattern OrderOnline.jsx uses for its voice parser.
+  const stateRef = useRef({});
+  stateRef.current = { menuItems, allCategories, favorites };
+
   // Returns a short string describing what happened (spoken back to
   // the user + shown in the bubble), or null if nothing matched.
   const handleVoiceCommand = useCallback((text) => {
     const t = text.toLowerCase().trim();
+    const { menuItems: items, allCategories: cats } = stateRef.current;
 
     if (t.includes('favorite')) {
       setShowFavoritesOnly(true);
@@ -192,7 +238,7 @@ const Menu = () => {
     }
 
     // "show <category>" / plain category name, e.g. "cold coffee"
-    const matchedCategory = allCategories.find(
+    const matchedCategory = cats.find(
       (cat) => cat !== 'All' && t.includes(cat.toLowerCase())
     );
     if (matchedCategory) {
@@ -212,7 +258,7 @@ const Menu = () => {
     }
 
     // direct item name spoken on its own — open its details modal
-    const matchedItem = coffeeMenu.find((item) => t.includes(item.name.toLowerCase()));
+    const matchedItem = items.find((item) => t.includes(item.name.toLowerCase()));
     if (matchedItem) {
       setShowFavoritesOnly(false);
       setSearchQuery(matchedItem.name);
@@ -228,13 +274,13 @@ const Menu = () => {
   }, []);
 
   const filtered = showFavoritesOnly
-    ? coffeeMenu.filter((item) => favorites.includes(item.name))
-    : coffeeMenu.filter((item) => {
+    ? menuItems.filter((item) => favorites.includes(item.name))
+    : menuItems.filter((item) => {
         const inCategory = activeCategory === 'All' || item.category === activeCategory;
         const inSearch =
           !searchQuery ||
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.category.toLowerCase().includes(searchQuery.toLowerCase());
+          item.category?.toLowerCase().includes(searchQuery.toLowerCase());
         return inCategory && inSearch;
       });
 
@@ -249,19 +295,14 @@ const Menu = () => {
   useEffect(() => {
     document.addEventListener('mousemove', onMouseMove);
 
-    // Added .voice-fab / .voice-hint-btn / .search-clear-btn / .mic-btn so the
-    // custom cursor ring reacts to the new controls the same way it
-    // already does for every other button on the page. Note: any plain
-    // <button> (like the new Add to Cart / Buy Now in the modal) is
-    // already covered by the generic 'button' selector below.
     const hoverTargets = document.querySelectorAll(
       'button, .menu-card, .filter-btn, .fav-btn, .voice-fab, .voice-hint-btn, .search-clear-btn, .mic-btn'
     );
     hoverTargets.forEach(el => { el.addEventListener('mouseenter', addHover); el.addEventListener('mouseleave', rmvHover); });
 
-    // This observer re-runs whenever activeCategory/showFavoritesOnly/searchQuery
-    // changes, so switching filters re-observes the new set of .menu-card.fade-in
-    // elements and reveals them.
+    // This observer re-runs whenever activeCategory/showFavoritesOnly/searchQuery/menuItems
+    // changes, so switching filters (or new live data arriving) re-observes the
+    // current set of .menu-card.fade-in elements and reveals them.
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
       { threshold: 0.1 }
@@ -273,7 +314,7 @@ const Menu = () => {
       hoverTargets.forEach(el => { el.removeEventListener('mouseenter', addHover); el.removeEventListener('mouseleave', rmvHover); });
       observer.disconnect();
     };
-  }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly, searchQuery]);
+  }, [onMouseMove, addHover, rmvHover, activeCategory, showFavoritesOnly, searchQuery, menuItems]);
 
   // close modal on Escape key
   useEffect(() => {
@@ -371,40 +412,69 @@ const Menu = () => {
             </div>
           ) : (
             <div className="menu-grid">
-              {filtered.map((item, index) => (
-                <div
-                  className="menu-card fade-in"
-                  key={`${showFavoritesOnly ? 'fav' : activeCategory}-${item.name}`}
-                  onClick={() => setSelectedItem(item)}
-                  style={{ transitionDelay: `${(index % 8) * 0.07}s`, cursor: 'pointer' }}
-                >
-                  <div className="menu-img-wrapper">
-                    <img
-                      src={item.img}
-                      alt={item.name}
-                      className="menu-img"
-                      loading="lazy"
-                    />
-                    <button
-                      className={`fav-btn ${isFavorite(item.name) ? 'active' : ''}`}
-                      onClick={(e) => handleHeartClick(e, item.name)}
-                      aria-label={isFavorite(item.name) ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      <HeartIcon />
-                    </button>
-                    <div className="card-overlay" />
-                    <div className="card-order-hint">
-                      <span className="order-hint-text">View</span>
-                      <span className="order-hint-arrow">→</span>
+              {filtered.map((item, index) => {
+                const stock = getItemStock(item);
+                const isOutOfStock = stock <= 0;
+
+                return (
+                  <div
+                    className="menu-card fade-in"
+                    key={`${showFavoritesOnly ? 'fav' : activeCategory}-${item.id}`}
+                    onClick={() => setSelectedItem(item)}
+                    style={{ transitionDelay: `${(index % 8) * 0.07}s`, cursor: 'pointer', opacity: isOutOfStock ? 0.6 : 1 }}
+                  >
+                    <div className="menu-img-wrapper">
+                      <img
+                        src={item.img}
+                        alt={item.name}
+                        className="menu-img"
+                        loading="lazy"
+                      />
+                      <button
+                        className={`fav-btn ${isFavorite(item.name) ? 'active' : ''}`}
+                        onClick={(e) => handleHeartClick(e, item.name)}
+                        aria-label={isFavorite(item.name) ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        <HeartIcon />
+                      </button>
+                      <div className="card-overlay" />
+
+                      {isOutOfStock ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            background: 'rgba(224, 112, 96, 0.92)',
+                            color: '#140e0b',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            letterSpacing: '0.08em',
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: '999px',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                            zIndex: 2,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          🚫 OUT OF STOCK
+                        </div>
+                      ) : (
+                        <div className="card-order-hint">
+                          <span className="order-hint-text">View</span>
+                          <span className="order-hint-arrow">→</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="menu-info">
+                      <p className="category-tag">{item.category}</p>
+                      <h3>{item.name}</h3>
+                      <p className="price">₹ {item.price}</p>
                     </div>
                   </div>
-                  <div className="menu-info">
-                    <p className="category-tag">{item.category}</p>
-                    <h3>{item.name}</h3>
-                    <p className="price">₹ {item.price}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -450,16 +520,26 @@ const Menu = () => {
                 <p className="details-description">{selectedItem.description}</p>
               )}
 
+              {getItemStock(selectedItem) <= 0 && (
+                <p style={{ color: '#e07060', fontWeight: 700, fontSize: '0.85rem' }}>
+                  🚫 Currently out of stock
+                </p>
+              )}
+
               <div className="details-actions">
                 <button
                   className={`details-add-cart-btn ${addedMap[selectedItem.name] ? 'added' : ''}`}
                   onClick={() => handleAddToCart(selectedItem)}
+                  disabled={getItemStock(selectedItem) <= 0}
+                  style={getItemStock(selectedItem) <= 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                 >
                   {addedMap[selectedItem.name] ? '✓ Added to Cart' : '🛒 Add to Cart'}
                 </button>
                 <button
                   className="details-buy-now-btn"
                   onClick={() => handleBuyNow(selectedItem)}
+                  disabled={getItemStock(selectedItem) <= 0}
+                  style={getItemStock(selectedItem) <= 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                 >
                   Buy Now →
                 </button>
