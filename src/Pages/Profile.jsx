@@ -18,7 +18,6 @@ import {
 import { auth, db } from "../firebase";
 import { generateBillPDF } from "../utils/generateBill";
 
-// Payment method labels + colors
 const PAYMENT_META = {
   card: { label: "Card", className: "pay-card" },
   cod: { label: "Cash on Delivery", className: "pay-cod" },
@@ -32,7 +31,6 @@ const getPaymentMeta = (method) => {
   return PAYMENT_META.other;
 };
 
-// Token redemption tiers
 const TOKEN_TIER_STEPS = [
   { amount: 500, label: "10% Off" },
   { amount: 1000, label: "20% Off" },
@@ -64,10 +62,8 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Admin Broadcast Message State
   const [globalAdminMsg, setGlobalAdminMsg] = useState("");
 
-  // Rewards state
   const [rewards, setRewards] = useState(emptyRewards);
   const [copied, setCopied] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
@@ -78,7 +74,6 @@ const Profile = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Feedback modal state
   const [feedbackOrder, setFeedbackOrder] = useState(null);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackHoverRating, setFeedbackHoverRating] = useState(0);
@@ -86,7 +81,6 @@ const Profile = () => {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  // Custom Cursor refs
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
@@ -110,14 +104,12 @@ const Profile = () => {
     [],
   );
 
-  // Redirect out if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/login");
     }
   }, [authLoading, user, navigate]);
 
-  // Load profile from Firestore & Listen for Live Admin Messages
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -137,7 +129,7 @@ const Profile = () => {
             email: data.email || user.email || "",
             photoURL: data.photoURL || user.photoURL || "",
             role: data.role || "user",
-            adminMessage: data.adminMessage || "",
+            adminMessage: data.adminMessage || data.adminNote || "",
           };
           if (!cancelled) {
             setProfile(loaded);
@@ -171,7 +163,7 @@ const Profile = () => {
 
     loadProfile();
 
-    // Listen to global admin announcements (if any in system_settings/announcements)
+    // Listen to real-time global admin announcements
     const unsubGlobal = onSnapshot(
       doc(db, "system_settings", "announcements"),
       (docSnap) => {
@@ -188,19 +180,16 @@ const Profile = () => {
     };
   }, [user]);
 
-  // Load order history
+  // Real-time Orders Listener (Live updates if Admin updates order status or adminNote)
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
 
-    const loadOrders = async () => {
-      setOrdersLoading(true);
-      try {
-        const q = query(
-          collection(db, "orders"),
-          where("userId", "==", user.uid),
-        );
-        const snap = await getDocs(q);
+    setOrdersLoading(true);
+    const q = query(collection(db, "orders"), where("userId", "==", user.uid));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
         const list = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => {
@@ -212,19 +201,16 @@ const Profile = () => {
               : new Date(b.createdAt || 0).getTime();
             return bTime - aTime;
           });
-        if (!cancelled) setOrders(list);
-      } catch (err) {
-        console.error("Orders load failed:", err);
-        if (!cancelled) setOrders([]);
-      } finally {
-        if (!cancelled) setOrdersLoading(false);
-      }
-    };
+        setOrders(list);
+        setOrdersLoading(false);
+      },
+      (err) => {
+        console.error("Orders snapshot failed:", err);
+        setOrdersLoading(false);
+      },
+    );
 
-    loadOrders();
-    return () => {
-      cancelled = true;
-    };
+    return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
@@ -303,7 +289,6 @@ const Profile = () => {
     }
   };
 
-  // Photo processing
   const resizeImage = (file, maxSize = 300, quality = 0.85) =>
     new Promise((resolve, reject) => {
       const img = new Image();
@@ -474,7 +459,7 @@ const Profile = () => {
       <div className="cursor-dot" ref={dotRef} />
       <div className="cursor-ring" ref={ringRef} />
       <div className="container profile-container">
-        {/* ── Admin Notice / Broadcast Message Banner ── */}
+        {/* ── Top Admin Notice Banner (Global or User specific) ── */}
         {activeAdminMessage && (
           <div className="admin-message-banner fade-in">
             <div className="admin-msg-icon">📢</div>
@@ -751,6 +736,11 @@ const Profile = () => {
                 const contact = getOrderContact(order);
                 const status = (order.status || "placed").toLowerCase();
                 const canRate = status === "completed" && !order.feedbackGiven;
+                const orderAdminMsg =
+                  order.adminNote ||
+                  order.adminMessage ||
+                  order.adminResponse ||
+                  order.reply;
 
                 return (
                   <li
@@ -769,6 +759,17 @@ const Profile = () => {
                         {order.status || "Placed"}
                       </span>
                     </div>
+
+                    {/* ── SPECIFIC ORDER ADMIN MESSAGE / NOTE ── */}
+                    {orderAdminMsg && (
+                      <div className="order-admin-note-box">
+                        <div className="order-admin-note-header">
+                          <span className="note-badge">Admin Note</span>
+                          <span className="note-icon">💬</span>
+                        </div>
+                        <p className="order-admin-note-text">{orderAdminMsg}</p>
+                      </div>
+                    )}
 
                     <div className="order-items-detailed">
                       {items.length === 0 ? (

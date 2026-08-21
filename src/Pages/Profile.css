@@ -92,7 +92,7 @@
   letter-spacing: 0.5px;
 }
 
-/* ── Admin Notice / Broadcast Banner ── */
+/* ── Top Admin Message Banner ── */
 .admin-message-banner {
   display: flex;
   align-items: center;
@@ -139,6 +139,48 @@
   font-size: 0.95rem;
   line-height: 1.45;
   margin: 0;
+}
+
+/* ── Order Level Admin Note Box (NEW) ── */
+.order-admin-note-box {
+  background: linear-gradient(
+    135deg,
+    rgba(212, 163, 115, 0.15),
+    rgba(44, 34, 29, 0.6)
+  );
+  border: 1px solid rgba(212, 163, 115, 0.4);
+  border-left: 4px solid #d4a373;
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.order-admin-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.note-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d4a373;
+}
+
+.note-icon {
+  font-size: 0.95rem;
+}
+
+.order-admin-note-text {
+  color: #fff;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0;
+  font-weight: 500;
 }
 
 /* ── Header: Photo & Identity ── */
@@ -1017,7 +1059,7 @@
   letter-spacing: 0.02em;
 }
 
-/* ── Responsive Media Queries ── */
+/* ── Responsive ── */
 @media (max-width: 700px) {
   .profile-page {
     padding-top: 110px;
