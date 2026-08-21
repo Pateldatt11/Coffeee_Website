@@ -76,7 +76,9 @@
   border: 1px solid rgba(201, 149, 108, 0.18);
   border-radius: 999px;
   padding: 0.15rem 0.15rem 0.15rem 1.1rem;
-  transition: border-color 0.3s ease, background 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease;
 }
 
 .nav-search:focus-within {
@@ -87,11 +89,11 @@
 .nav-search-input {
   flex: 1;
   min-width: 0;
-  background: none;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   outline: none;
-  color: #e0c9a6;
-  font-family: 'DM Sans', sans-serif;
+  color: #e0c9a6 !important;
+  font-family: "DM Sans", sans-serif;
   font-size: 0.88rem;
   padding: 0.55rem 0;
 }
@@ -112,7 +114,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.25s ease, transform 0.25s ease;
+  transition:
+    background 0.25s ease,
+    transform 0.25s ease;
 }
 
 .nav-search-btn:hover {
@@ -148,7 +152,7 @@
 }
 
 .nav-link::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 0;
   height: 2px;
@@ -275,7 +279,7 @@
   font-size: 0.9rem;
   font-weight: 700;
   color: #2c221d;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
 }
 
 .user-name {
@@ -298,7 +302,7 @@
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.25s ease;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   white-space: nowrap;
 }
 
@@ -337,7 +341,10 @@
 }
 
 .wishlist-icon-link svg {
-  transition: transform 0.3s ease, fill 0.3s ease, stroke 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease;
 }
 
 .wishlist-icon-link:hover {
@@ -386,8 +393,14 @@
 }
 
 @keyframes badgePop {
-  0%   { transform: scale(0.4); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ── Mega Dropdown ── */
@@ -435,9 +448,10 @@
   transform: translateY(-14px);
   pointer-events: none;
   visibility: hidden;
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.35s;
+  transition:
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.35s;
 }
 
 .mega-dropdown.open {
@@ -499,13 +513,15 @@
   text-decoration: none;
   font-size: 0.98rem;
   font-weight: 500;
-  transition: color 0.25s ease, transform 0.25s ease;
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
   width: fit-content;
   position: relative;
 }
 
 .mega-link::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -14px;
   top: 50%;
@@ -531,7 +547,11 @@
 }
 
 .mega-featured-card {
-  background: linear-gradient(160deg, rgba(212, 163, 115, 0.14), rgba(212, 163, 115, 0.04));
+  background: linear-gradient(
+    160deg,
+    rgba(212, 163, 115, 0.14),
+    rgba(212, 163, 115, 0.04)
+  );
   border: 1px solid rgba(201, 149, 108, 0.25);
   border-radius: 14px;
   padding: 1.4rem;
@@ -544,7 +564,11 @@
 }
 
 .mega-featured-card:hover {
-  background: linear-gradient(160deg, rgba(212, 163, 115, 0.22), rgba(212, 163, 115, 0.08));
+  background: linear-gradient(
+    160deg,
+    rgba(212, 163, 115, 0.22),
+    rgba(212, 163, 115, 0.08)
+  );
   border-color: rgba(212, 163, 115, 0.5);
   transform: translateY(-4px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
@@ -575,13 +599,26 @@
 }
 
 @keyframes steam {
-  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.7; }
-  50%      { transform: translateY(-8px) rotate(5deg); opacity: 1; }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) rotate(5deg);
+    opacity: 1;
+  }
 }
 
 @keyframes fadeInDown {
-  0%   { opacity: 0; transform: translateY(-40px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* =========================================================
@@ -593,18 +630,66 @@
   width: 100%;
   padding-top: 78px; /* Navbar space */
   background:
-    radial-gradient(circle at 10% 20%, rgba(201, 149, 108, 0.08), transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(212, 163, 115, 0.05), transparent 40%),
+    radial-gradient(
+      circle at 10% 20%,
+      rgba(201, 149, 108, 0.08),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 90% 80%,
+      rgba(212, 163, 115, 0.05),
+      transparent 40%
+    ),
     #140e0b;
   color: #e0c9a6;
-  font-family: 'DM Sans', sans-serif;
+  font-family: "DM Sans", sans-serif;
   overflow-x: hidden;
 }
 
+/* ── Global Dark Inputs, Selects & Date Pickers ── */
 .admin-panel button,
 .admin-panel input,
 .admin-panel select {
   font-family: inherit;
+}
+
+.admin-panel input:not([type="checkbox"]):not([type="radio"]),
+.admin-panel select {
+  background: rgba(20, 14, 11, 0.85) !important;
+  color: #e0c9a6 !important;
+  border: 1px solid rgba(201, 149, 108, 0.25);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.88rem;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.admin-panel input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-panel select:focus {
+  border-color: #d4a373 !important;
+  background: rgba(20, 14, 11, 0.98) !important;
+  box-shadow: 0 0 10px rgba(212, 163, 115, 0.15);
+}
+
+.admin-panel input::placeholder {
+  color: #7a6a58 !important;
+}
+
+.admin-panel input[type="date"] {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.admin-panel input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(50%) saturate(400%) hue-rotate(345deg);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.admin-panel input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .admin-panel button:focus-visible,
@@ -755,6 +840,60 @@
   font-size: 0.82rem;
 }
 
+/* ── Global Filter Toolbars (For Orders, Reviews, Users, Products) ── */
+.admin-filter-bar,
+.orders-filter-bar,
+.reviews-filter-bar,
+.users-filter-bar,
+.feedback-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+  padding: 0.85rem;
+  background: rgba(30, 22, 17, 0.7);
+  border: 1px solid rgba(201, 149, 108, 0.18);
+  border-radius: 16px;
+}
+
+.admin-filter-bar input[type="text"],
+.admin-filter-bar input[type="search"],
+.orders-filter-bar input,
+.reviews-filter-bar input,
+.users-filter-bar input,
+.feedback-filter-bar input {
+  min-width: 220px;
+  flex: 1;
+}
+
+/* ── Export CSV Button ── */
+.export-btn,
+.admin-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  background: #d4a373;
+  color: #201510;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.export-btn:hover,
+.admin-export-btn:hover {
+  background: #e0c9a6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 163, 115, 0.25);
+}
+
 /* ── Stats Row ── */
 .admin-stats-row {
   display: grid;
@@ -818,23 +957,6 @@
   gap: 1rem;
   align-items: flex-end;
   margin-top: 0.8rem;
-}
-
-.admin-form-row input {
-  width: 100%;
-  background: rgba(20, 14, 11, 0.7);
-  border: 1px solid rgba(201, 149, 108, 0.2);
-  color: #e0c9a6;
-  border-radius: 10px;
-  padding: 0.65rem 0.9rem;
-  font-size: 0.88rem;
-  outline: none;
-  transition: all 0.25s ease;
-}
-
-.admin-form-row input:focus {
-  border-color: #d4a373;
-  background: rgba(20, 14, 11, 0.95);
 }
 
 .admin-input-group {
@@ -960,10 +1082,10 @@
 
 .admin-inline-input {
   min-width: 80px;
-  padding: 0.45rem 0.65rem;
-  color: #e0c9a6;
-  background: rgba(20, 14, 11, 0.6);
-  border: 1px solid rgba(201, 149, 108, 0.2);
+  padding: 0.45rem 0.65rem !important;
+  color: #e0c9a6 !important;
+  background: rgba(20, 14, 11, 0.6) !important;
+  border: 1px solid rgba(201, 149, 108, 0.2) !important;
   border-radius: 8px;
   font-weight: 600;
   outline: none;
@@ -972,23 +1094,23 @@
 
 .admin-inline-input:hover,
 .admin-inline-input:focus {
-  border-color: #d4a373;
-  background: rgba(20, 14, 11, 0.9);
+  border-color: #d4a373 !important;
+  background: rgba(20, 14, 11, 0.9) !important;
 }
 
 .admin-select {
   min-width: 120px;
-  padding: 0.45rem 1rem 0.45rem 0.65rem;
-  color: #e0c9a6;
-  background: #201510;
-  border: 1px solid rgba(201, 149, 108, 0.25);
+  padding: 0.45rem 1rem 0.45rem 0.65rem !important;
+  color: #e0c9a6 !important;
+  background: #201510 !important;
+  border: 1px solid rgba(201, 149, 108, 0.25) !important;
   border-radius: 8px;
   cursor: pointer;
   outline: none;
 }
 
 .admin-select:focus {
-  border-color: #d4a373;
+  border-color: #d4a373 !important;
 }
 
 .admin-delete-btn {
@@ -1047,12 +1169,13 @@
 .stock-number-input {
   width: 48px;
   height: 28px;
-  color: #fff;
-  background: transparent;
-  border: 0;
+  color: #fff !important;
+  background: transparent !important;
+  border: 0 !important;
   text-align: center;
   font-weight: 700;
   outline: none;
+  padding: 0 !important;
 }
 
 .stock-edit-link {
@@ -1074,10 +1197,10 @@
 .stock-threshold-input,
 .inventory-threshold-input {
   width: 65px;
-  padding: 0.45rem 0.5rem;
-  color: #fff;
-  background: rgba(20, 14, 11, 0.6);
-  border: 1px solid rgba(201, 149, 108, 0.25);
+  padding: 0.45rem 0.5rem !important;
+  color: #fff !important;
+  background: rgba(20, 14, 11, 0.6) !important;
+  border: 1px solid rgba(201, 149, 108, 0.25) !important;
   border-radius: 8px;
   text-align: center;
   font-weight: 700;
@@ -1086,7 +1209,7 @@
 
 .stock-threshold-input:focus,
 .inventory-threshold-input:focus {
-  border-color: #d4a373;
+  border-color: #d4a373 !important;
 }
 
 .admin-thumb {
@@ -1322,7 +1445,6 @@
 .smart-alert-product strong {
   display: block;
   color: #fff;
-  font-size: 0.92rem;
 }
 
 .smart-alert-product span {
@@ -1505,15 +1627,16 @@
 .inventory-search input {
   width: 100%;
   height: 100%;
-  color: #fff;
-  background: transparent;
-  border: 0;
+  color: #fff !important;
+  background: transparent !important;
+  border: 0 !important;
   outline: none;
   font-size: 0.88rem;
+  padding: 0 !important;
 }
 
 .inventory-search input::placeholder {
-  color: #7a6a58;
+  color: #7a6a58 !important;
 }
 
 .inventory-filter-group {
@@ -1574,10 +1697,10 @@
 
 .inventory-category-select {
   height: 42px;
-  padding: 0 1.2rem;
-  color: #e0c9a6;
-  background: #201510;
-  border: 1px solid rgba(201, 149, 108, 0.25);
+  padding: 0 1.2rem !important;
+  color: #e0c9a6 !important;
+  background: #201510 !important;
+  border: 1px solid rgba(201, 149, 108, 0.25) !important;
   border-radius: 10px;
   cursor: pointer;
   outline: none;
@@ -1662,12 +1785,13 @@
 .inventory-stock-input {
   width: 50px;
   height: 28px;
-  color: #fff;
-  background: transparent;
-  border: 0;
+  color: #fff !important;
+  background: transparent !important;
+  border: 0 !important;
   outline: none;
   text-align: center;
   font-weight: 700;
+  padding: 0 !important;
 }
 
 .inventory-threshold-cell {
