@@ -7,7 +7,6 @@ import React, {
 } from "react";
 
 import { useNavigate } from "react-router-dom";
-
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
 import {
@@ -26,7 +25,6 @@ import {
 } from "firebase/firestore";
 
 import Chart from "chart.js/auto";
-
 import { auth, db } from "../firebase";
 import { coffeeMenu } from "../data/menuData";
 
@@ -46,11 +44,11 @@ const ORDER_STATUSES = [
   "cancelled",
 ];
 
+const PAYMENT_STATUSES = ["pending", "paid", "refunded", "failed"];
+
 const LIST_LIMIT = 500;
 const BATCH_CHUNK_SIZE = 450;
 
-// Fixed category list for the Add New Item form.
-// "Custom" is always the last option — picking it switches to a free text input.
 const CATEGORY_OPTIONS = [
   "Classic Espresso",
   "Espresso + Milk",
@@ -73,14 +71,13 @@ const CATEGORY_OPTIONS = [
 const CUSTOM_CATEGORY_VALUE = "__custom__";
 
 /* ============================================================
-   HELPERS
+   HELPERS & UI UTILITIES
 ============================================================ */
 
 const shortUid = (uid) => (uid ? `${uid.slice(0, 8)}…` : "—");
 
 const formatCustomization = (c) => {
   if (!c) return null;
-
   return [
     c.size,
     c.milk,
@@ -93,23 +90,15 @@ const formatCustomization = (c) => {
     .join(" · ");
 };
 
-/* ============================================================
-   INVENTORY HELPERS
-============================================================ */
-
 const getStock = (item) => {
   const stock = Number(item?.stock);
-  if (!Number.isFinite(stock) || stock < 0) {
-    return 0;
-  }
+  if (!Number.isFinite(stock) || stock < 0) return 0;
   return Math.floor(stock);
 };
 
 const getLowStockAt = (item) => {
   const value = Number(item?.lowStockAt);
-  if (!Number.isFinite(value) || value < 0) {
-    return 5;
-  }
+  if (!Number.isFinite(value) || value < 0) return 5;
   return Math.floor(value);
 };
 
@@ -121,60 +110,82 @@ const getReorderLevel = (item) => {
 const getInventoryStatus = (item) => {
   const stock = getStock(item);
   const threshold = getLowStockAt(item);
-
-  if (stock <= 0) {
-    return "out";
-  }
-  if (stock <= threshold) {
-    return "low";
-  }
+  if (stock <= 0) return "out";
+  if (stock <= threshold) return "low";
   return "healthy";
 };
 
 const getInventoryStatusLabel = (item) => {
   const status = getInventoryStatus(item);
-  if (status === "out") {
-    return "OUT OF STOCK";
-  }
-  if (status === "low") {
-    return "LOW STOCK";
-  }
+  if (status === "out") return "OUT OF STOCK";
+  if (status === "low") return "LOW STOCK";
   return "IN STOCK";
 };
 
 const getInventoryStatusClass = (item) => {
   const status = getInventoryStatus(item);
-  if (status === "out") {
-    return "inventory-status-out";
-  }
-  if (status === "low") {
-    return "inventory-status-low";
-  }
+  if (status === "out") return "inventory-status-out";
+  if (status === "low") return "inventory-status-low";
   return "inventory-status-healthy";
 };
 
 /* ============================================================
-   ADMIN PANEL
+   MAIN ADMIN PANEL COMPONENT
 ============================================================ */
 
 const AdminPanel = () => {
   const navigate = useNavigate();
 
+  // Auth & Core State
   const [checking, setChecking] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [adminUid, setAdminUid] = useState(null);
   const [adminEmail, setAdminEmail] = useState("");
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
+  // Active Tab: orders | menu | inventory | users | feedback | analytics
   const [activeTab, setActiveTab] = useState("orders");
 
+  // Database Data States
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [users, setUsers] = useState([]);
   const [visits, setVisits] = useState([]);
   const [feedbackList, setFeedbackList] = useState([]);
-
   const [seeding, setSeeding] = useState(false);
 
+  // UI Modals & Interaction States
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [cancelModal, setCancelModal] = useState({
+    isOpen: false,
+    orderId: null,
+    reason: "",
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    action: null,
+    isDanger: false,
+  });
+  const [replyInput, setReplyInput] = useState({ feedbackId: null, text: "" });
+
+  // Filters & Searches
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [orderDateFilter, setOrderDateFilter] = useState("");
+
+  const [userSearch, setUserSearch] = useState("");
+
+  const [feedbackSearch, setFeedbackSearch] = useState("");
+  const [feedbackFilter, setFeedbackFilter] = useState("all"); // all | flagged | resolved
+
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryFilter, setInventoryFilter] = useState("all");
+  const [inventoryCategory, setInventoryCategory] = useState("all");
+
+  // Add Item State
   const [newItem, setNewItem] = useState({
     name: "",
     category: "",
@@ -183,17 +194,19 @@ const AdminPanel = () => {
     stock: "0",
     lowStockAt: "5",
   });
+  const [categoryMode, setCategoryMode] = useState("select");
 
-  // Controls whether the Category field shows the fixed dropdown or a free text input.
-  const [categoryMode, setCategoryMode] = useState("select"); // "select" | "custom"
-
-  const [inventorySearch, setInventorySearch] = useState("");
-  const [inventoryFilter, setInventoryFilter] = useState("all");
-  const [inventoryCategory, setInventoryCategory] = useState("all");
-
+  // Cursor Refs
   const dotRef = useRef(null);
   const ringRef = useRef(null);
 
+  // Helper: Show Toast
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: "", type: "success" }), 4000);
+  };
+
+  // Cursor Hover Handlers
   const onMouseMove = useCallback((e) => {
     if (dotRef.current) {
       dotRef.current.style.left = `${e.clientX}px`;
@@ -216,14 +229,10 @@ const AdminPanel = () => {
   useEffect(() => {
     document.addEventListener("mousemove", onMouseMove);
     const handleMouseOver = (e) => {
-      if (e.target.closest("button, a, input, select")) {
-        addHover();
-      }
+      if (e.target.closest("button, a, input, select, textarea")) addHover();
     };
     const handleMouseOut = (e) => {
-      if (e.target.closest("button, a, input, select")) {
-        rmvHover();
-      }
+      if (e.target.closest("button, a, input, select, textarea")) rmvHover();
     };
 
     document.addEventListener("mouseover", handleMouseOver);
@@ -236,6 +245,19 @@ const AdminPanel = () => {
     };
   }, [onMouseMove, addHover, rmvHover]);
 
+  // Network Status Monitor
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Auth & Admin Verification
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -246,7 +268,8 @@ const AdminPanel = () => {
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         const role = snap.exists() ? snap.data().role : null;
-        const isDefaultAdmin = user.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+        const isDefaultAdmin =
+          user.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
 
         if (role === "admin" || isDefaultAdmin) {
           if (isDefaultAdmin && role !== "admin") {
@@ -269,6 +292,7 @@ const AdminPanel = () => {
     return () => unsub();
   }, [navigate]);
 
+  // Self Role Real-time Listener
   useEffect(() => {
     if (!authorized || !adminUid) return;
 
@@ -277,7 +301,8 @@ const AdminPanel = () => {
       (snap) => {
         const role = snap.exists() ? snap.data().role : null;
         const email = snap.exists() ? snap.data().email : "";
-        const isDefaultAdmin = email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+        const isDefaultAdmin =
+          email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
 
         if (role !== "admin" && !isDefaultAdmin) {
           signOut(auth).finally(() => navigate("/"));
@@ -289,6 +314,7 @@ const AdminPanel = () => {
     return () => unsubSelf();
   }, [authorized, adminUid, navigate]);
 
+  // Firestore Real-Time Subscriptions
   useEffect(() => {
     if (!authorized) return;
 
@@ -301,7 +327,10 @@ const AdminPanel = () => {
       (snap) => {
         setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
-      (err) => console.error("Orders listener error:", err),
+      (err) => {
+        console.error("Orders listener error:", err);
+        showToast("Error loading live orders.", "error");
+      },
     );
 
     const unsubMenu = onSnapshot(
@@ -358,24 +387,97 @@ const AdminPanel = () => {
     navigate("/login");
   };
 
+  /* ============================================================
+     ACTIONS: ORDERS
+  ============================================================ */
+
   const updateOrderStatus = async (orderId, status) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status });
+      await updateDoc(doc(db, "orders", orderId), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(`Order status updated to "${status.replace(/_/g, " ")}"`);
     } catch (err) {
-      console.error("Failed to update order status:", err);
-      alert("Could not update order status.");
+      console.error("Failed to update status:", err);
+      showToast("Could not update order status.", "error");
     }
   };
 
-  const deleteOrder = async (orderId) => {
-    if (!window.confirm("Delete this order permanently?")) return;
+  const updatePaymentStatus = async (orderId, paymentStatus) => {
     try {
-      await deleteDoc(doc(db, "orders", orderId));
+      await updateDoc(doc(db, "orders", orderId), {
+        paymentStatus,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(`Payment status updated to "${paymentStatus}"`);
     } catch (err) {
-      console.error("Failed to delete order:", err);
-      alert("Could not delete order.");
+      console.error("Failed to update payment status:", err);
+      showToast("Could not update payment status.", "error");
     }
   };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelModal.orderId) return;
+    try {
+      await updateDoc(doc(db, "orders", cancelModal.orderId), {
+        status: "cancelled",
+        cancelReason: cancelModal.reason || "Cancelled by Store Admin",
+        updatedAt: serverTimestamp(),
+      });
+      setCancelModal({ isOpen: false, orderId: null, reason: "" });
+      showToast("Order cancelled successfully.");
+    } catch (err) {
+      console.error("Failed to cancel order:", err);
+      showToast("Could not cancel order.", "error");
+    }
+  };
+
+  const deleteOrder = (orderId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Order Permanently",
+      message:
+        "Are you sure you want to delete this order? This action cannot be undone.",
+      isDanger: true,
+      action: async () => {
+        try {
+          await deleteDoc(doc(db, "orders", orderId));
+          showToast("Order deleted successfully.");
+        } catch (err) {
+          console.error("Failed to delete order:", err);
+          showToast("Could not delete order.", "error");
+        }
+      },
+    });
+  };
+
+  const handleExportOrders = () => {
+    const headers =
+      "Order ID,Customer,Phone,Amount,Payment Method,Payment Status,Delivery Status,Date\n";
+    const rows = filteredOrders
+      .map((o) => {
+        const dateStr = o.createdAt?.toDate
+          ? o.createdAt.toDate().toISOString()
+          : "";
+        return `"${o.id}","${o.customerName || "N/A"}","${o.phone || "N/A"}","${o.amount || 0}","${o.paymentMethod || "N/A"}","${o.paymentStatus || "pending"}","${o.status || "placed"}","${dateStr}"`;
+      })
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + headers + rows], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    showToast("Orders exported successfully!");
+  };
+
+  /* ============================================================
+     ACTIONS: MENU & INVENTORY
+  ============================================================ */
 
   const handleAddItem = async (e) => {
     e.preventDefault();
@@ -384,7 +486,7 @@ const AdminPanel = () => {
       !newItem.category.trim() ||
       newItem.price === ""
     ) {
-      alert("Name, category and price are required.");
+      showToast("Name, category and price are required.", "error");
       return;
     }
 
@@ -393,11 +495,11 @@ const AdminPanel = () => {
     const lowStockNum = Number(newItem.lowStockAt);
 
     if (Number.isNaN(priceNum) || priceNum < 0) {
-      alert("Price must be a valid, non-negative number.");
+      showToast("Price must be a valid, non-negative number.", "error");
       return;
     }
     if (Number.isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
-      alert("Stock must be a whole number greater than or equal to 0.");
+      showToast("Stock must be a whole number >= 0.", "error");
       return;
     }
     if (
@@ -405,7 +507,7 @@ const AdminPanel = () => {
       lowStockNum < 0 ||
       !Number.isInteger(lowStockNum)
     ) {
-      alert("Low Stock At must be a whole number greater than or equal to 0.");
+      showToast("Low Stock threshold must be a whole number >= 0.", "error");
       return;
     }
 
@@ -429,15 +531,13 @@ const AdminPanel = () => {
         lowStockAt: "5",
       });
       setCategoryMode("select");
-      alert("Menu item added successfully.");
+      showToast("Menu item added successfully.");
     } catch (err) {
       console.error("Failed to add menu item:", err);
-      alert("Could not add menu item.");
+      showToast("Could not add menu item.", "error");
     }
   };
 
-  // Handles the Category <select> in the Add New Item form.
-  // Picking "Custom" (always the last option) switches to a free text input.
   const handleCategorySelectChange = (e) => {
     const value = e.target.value;
     if (value === CUSTOM_CATEGORY_VALUE) {
@@ -460,9 +560,10 @@ const AdminPanel = () => {
         finalValue = Number(value);
       }
       await updateDoc(doc(db, "menu", id), { [field]: finalValue });
+      showToast("Item updated successfully.");
     } catch (err) {
-      console.error("Failed to update menu item:", err);
-      alert("Could not update menu item.");
+      console.error("Failed to update item:", err);
+      showToast("Could not update menu item.", "error");
     }
   };
 
@@ -470,7 +571,7 @@ const AdminPanel = () => {
     const raw = e.target.value;
     const parsed = Number(raw);
     if (raw.trim() === "" || Number.isNaN(parsed) || parsed < 0) {
-      alert("Price must be a valid, non-negative number.");
+      showToast("Price must be a valid, non-negative number.", "error");
       e.target.value = item.price;
       return;
     }
@@ -488,7 +589,7 @@ const AdminPanel = () => {
       parsed < 0 ||
       !Number.isInteger(parsed)
     ) {
-      alert("Stock must be a whole number greater than or equal to 0.");
+      showToast("Stock must be a whole number >= 0.", "error");
       e.target.value = getStock(item);
       return;
     }
@@ -506,7 +607,7 @@ const AdminPanel = () => {
       parsed < 0 ||
       !Number.isInteger(parsed)
     ) {
-      alert("Low Stock At must be a whole number greater than or equal to 0.");
+      showToast("Alert threshold must be a whole number >= 0.", "error");
       e.target.value = getLowStockAt(item);
       return;
     }
@@ -524,7 +625,7 @@ const AdminPanel = () => {
       await updateDoc(doc(db, "menu", item.id), { stock: nextStock });
     } catch (err) {
       console.error("Failed to change stock:", err);
-      alert("Could not update stock.");
+      showToast("Could not update stock.", "error");
     }
   };
 
@@ -537,15 +638,16 @@ const AdminPanel = () => {
 
     const parsed = Number(input);
     if (Number.isNaN(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
-      alert("Stock must be a whole number greater than or equal to 0.");
+      showToast("Stock must be a whole number >= 0.", "error");
       return;
     }
 
     try {
       await updateDoc(doc(db, "menu", item.id), { stock: parsed });
+      showToast(`Stock updated to ${parsed}`);
     } catch (err) {
       console.error("Failed to set stock:", err);
-      alert("Could not update stock.");
+      showToast("Could not update stock.", "error");
     }
   };
 
@@ -554,20 +656,29 @@ const AdminPanel = () => {
     const next = current + quantity;
     try {
       await updateDoc(doc(db, "menu", item.id), { stock: next });
+      showToast(`Restocked +${quantity} units.`);
     } catch (err) {
       console.error("Quick restock failed:", err);
-      alert("Could not restock item.");
+      showToast("Could not restock item.", "error");
     }
   };
 
-  const deleteMenuItem = async (id) => {
-    if (!window.confirm("Remove this item from the menu?")) return;
-    try {
-      await deleteDoc(doc(db, "menu", id));
-    } catch (err) {
-      console.error("Failed to delete menu item:", err);
-      alert("Could not delete item.");
-    }
+  const deleteMenuItem = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Menu Item",
+      message: "Are you sure you want to remove this item from the live menu?",
+      isDanger: true,
+      action: async () => {
+        try {
+          await deleteDoc(doc(db, "menu", id));
+          showToast("Menu item removed.");
+        } catch (err) {
+          console.error("Failed to delete menu item:", err);
+          showToast("Could not delete item.", "error");
+        }
+      },
+    });
   };
 
   const seedMenuFromStaticData = async () => {
@@ -596,19 +707,26 @@ const AdminPanel = () => {
         });
         await batch.commit();
       }
-      alert("Menu imported into Firestore successfully.");
+      showToast("Menu imported into Firestore successfully.");
     } catch (err) {
       console.error("Seeding failed:", err);
-      alert("Could not import menu. Check console for details.");
+      showToast("Could not import menu.", "error");
     } finally {
       setSeeding(false);
     }
   };
 
+  /* ============================================================
+     ACTIONS: USERS
+  ============================================================ */
+
   const updateUserRole = async (uid, role) => {
     const targetUser = users.find((u) => u.id === uid);
-    if (targetUser?.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase() && role !== "admin") {
-      alert("Primary admin role cannot be changed.");
+    if (
+      targetUser?.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase() &&
+      role !== "admin"
+    ) {
+      showToast("Primary admin role cannot be changed.", "error");
       return;
     }
 
@@ -620,10 +738,44 @@ const AdminPanel = () => {
     }
     try {
       await updateDoc(doc(db, "users", uid), { role });
+      showToast("User role updated successfully.");
     } catch (err) {
       console.error("Failed to update user role:", err);
-      alert("Could not update user role.");
+      showToast("Could not update user role.", "error");
     }
+  };
+
+  const toggleUserDisabled = async (u) => {
+    const nextState = !u.disabled;
+    try {
+      await updateDoc(doc(db, "users", u.id), { disabled: nextState });
+      showToast(`User account has been ${nextState ? "disabled" : "enabled"}.`);
+    } catch (err) {
+      console.error("Failed to update user disabled state:", err);
+      showToast("Could not update user state.", "error");
+    }
+  };
+
+  const deleteUser = (u) => {
+    if (u.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase()) {
+      showToast("Cannot delete primary admin account.", "error");
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete User Account",
+      message: `Are you sure you want to permanently delete account ${u.email}?`,
+      isDanger: true,
+      action: async () => {
+        try {
+          await deleteDoc(doc(db, "users", u.id));
+          showToast("User account deleted.");
+        } catch (err) {
+          console.error("Failed to delete user:", err);
+          showToast("Could not delete user account.", "error");
+        }
+      },
+    });
   };
 
   const adjustUserWallet = async (u) => {
@@ -634,14 +786,15 @@ const AdminPanel = () => {
     if (input === null) return;
     const parsed = Number(input);
     if (Number.isNaN(parsed) || parsed < 0) {
-      alert("Please enter a valid, non-negative number.");
+      showToast("Please enter a valid, non-negative number.", "error");
       return;
     }
     try {
       await updateDoc(doc(db, "users", u.id), { wallet: parsed });
+      showToast("Wallet balance updated.");
     } catch (err) {
       console.error("Failed to update wallet:", err);
-      alert("Could not update wallet balance.");
+      showToast("Could not update wallet balance.", "error");
     }
   };
 
@@ -653,16 +806,117 @@ const AdminPanel = () => {
     if (input === null) return;
     const parsed = Number(input);
     if (Number.isNaN(parsed) || parsed < 0) {
-      alert("Please enter a valid, non-negative number.");
+      showToast("Please enter a valid, non-negative number.", "error");
       return;
     }
     try {
       await updateDoc(doc(db, "users", u.id), { tokens: parsed });
+      showToast("Token balance updated.");
     } catch (err) {
       console.error("Failed to update tokens:", err);
-      alert("Could not update token balance.");
+      showToast("Could not update token balance.", "error");
     }
   };
+
+  /* ============================================================
+     ACTIONS: FEEDBACK
+  ============================================================ */
+
+  const updateFeedbackStatus = async (id, status) => {
+    try {
+      await updateDoc(doc(db, "feedback", id), { status });
+      showToast(`Feedback status marked as "${status}".`);
+    } catch (err) {
+      console.error("Failed to update feedback status:", err);
+      showToast("Could not update feedback status.", "error");
+    }
+  };
+
+  const handleSendFeedbackReply = async (id) => {
+    if (!replyInput.text.trim()) return;
+    try {
+      await updateDoc(doc(db, "feedback", id), {
+        adminReply: replyInput.text.trim(),
+        repliedAt: serverTimestamp(),
+        status: "resolved",
+      });
+      setReplyInput({ feedbackId: null, text: "" });
+      showToast("Reply sent to customer.");
+    } catch (err) {
+      console.error("Failed to reply to feedback:", err);
+      showToast("Could not send reply.", "error");
+    }
+  };
+
+  const deleteFeedback = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Customer Feedback",
+      message:
+        "Are you sure you want to permanently delete this customer review?",
+      isDanger: true,
+      action: async () => {
+        try {
+          await deleteDoc(doc(db, "feedback", id));
+          showToast("Feedback review deleted.");
+        } catch (err) {
+          console.error("Failed to delete feedback:", err);
+          showToast("Could not delete feedback.", "error");
+        }
+      },
+    });
+  };
+
+  /* ============================================================
+     COMPUTATIONS & MEMOIZED STATS
+  ============================================================ */
+
+  const filteredOrders = useMemo(() => {
+    const search = orderSearch.trim().toLowerCase();
+    return orders.filter((o) => {
+      const matchSearch =
+        !search ||
+        (o.id && o.id.toLowerCase().includes(search)) ||
+        (o.customerName && o.customerName.toLowerCase().includes(search)) ||
+        (o.phone && o.phone.toLowerCase().includes(search));
+
+      const matchStatus =
+        orderStatusFilter === "all" || o.status === orderStatusFilter;
+
+      const matchDate =
+        !orderDateFilter ||
+        (o.createdAt?.toDate &&
+          o.createdAt.toDate().toISOString().startsWith(orderDateFilter));
+
+      return matchSearch && matchStatus && matchDate;
+    });
+  }, [orders, orderSearch, orderStatusFilter, orderDateFilter]);
+
+  const filteredUsers = useMemo(() => {
+    const search = userSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      if (!search) return true;
+      return (
+        (u.name && u.name.toLowerCase().includes(search)) ||
+        (u.email && u.email.toLowerCase().includes(search)) ||
+        (u.id && u.id.toLowerCase().includes(search))
+      );
+    });
+  }, [users, userSearch]);
+
+  const filteredFeedbackList = useMemo(() => {
+    const search = feedbackSearch.trim().toLowerCase();
+    return feedbackList.filter((f) => {
+      const matchSearch =
+        !search ||
+        (f.customerName && f.customerName.toLowerCase().includes(search)) ||
+        (f.comment && f.comment.toLowerCase().includes(search));
+
+      const matchStatus =
+        feedbackFilter === "all" || (f.status || "active") === feedbackFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [feedbackList, feedbackSearch, feedbackFilter]);
 
   const feedbackStats = useMemo(() => {
     const total = feedbackList.length;
@@ -678,12 +932,12 @@ const AdminPanel = () => {
       count: feedbackList.filter((f) => Number(f.rating) === star).length,
     }));
 
-    const sorted = [...feedbackList].sort(
+    const sorted = [...filteredFeedbackList].sort(
       (a, b) => (Number(a.rating) || 0) - (Number(b.rating) || 0),
     );
 
     return { total, avg, distribution, sorted };
-  }, [feedbackList]);
+  }, [feedbackList, filteredFeedbackList]);
 
   const renderStars = (rating) => {
     const r = Number(rating) || 0;
@@ -771,9 +1025,8 @@ const AdminPanel = () => {
         );
       })
       .filter((item) => {
-        if (inventoryCategory !== "all") {
+        if (inventoryCategory !== "all")
           return item.category === inventoryCategory;
-        }
         return true;
       })
       .filter((item) => {
@@ -829,6 +1082,39 @@ const AdminPanel = () => {
       visits.map((v) => v.visitorId).filter(Boolean),
     ).size;
 
+    // Today Revenue & Cancel Rate
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayRevenue = orders
+      .filter(
+        (o) =>
+          o.createdAt?.toDate &&
+          o.createdAt.toDate().toISOString().startsWith(todayStr),
+      )
+      .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+
+    const cancelledCount = orders.filter(
+      (o) => o.status === "cancelled",
+    ).length;
+    const cancelRate = totalOrders
+      ? ((cancelledCount / totalOrders) * 100).toFixed(1)
+      : "0.0";
+    const avgOrderValue = totalOrders
+      ? (totalRevenue / totalOrders).toFixed(2)
+      : "0.00";
+
+    // Peak Ordering Hour
+    const hourCounts = {};
+    orders.forEach((o) => {
+      if (o.createdAt?.toDate) {
+        const hr = o.createdAt.toDate().getHours();
+        hourCounts[hr] = (hourCounts[hr] || 0) + 1;
+      }
+    });
+    const peakHour = Object.keys(hourCounts).reduce(
+      (a, b) => (hourCounts[a] > hourCounts[b] ? a : b),
+      "N/A",
+    );
+
     const dayMap = {};
     visits.forEach((v) => {
       const d = v.createdAt?.toDate
@@ -842,9 +1128,7 @@ const AdminPanel = () => {
         day: "2-digit",
         month: "short",
       });
-      if (!dayMap[sortKey]) {
-        dayMap[sortKey] = { label, count: 0 };
-      }
+      if (!dayMap[sortKey]) dayMap[sortKey] = { label, count: 0 };
       dayMap[sortKey].count += 1;
     });
 
@@ -857,6 +1141,10 @@ const AdminPanel = () => {
       worstSellers,
       paymentStats,
       totalRevenue,
+      todayRevenue,
+      cancelRate,
+      avgOrderValue,
+      peakHour: peakHour !== "N/A" ? `${peakHour}:00` : "N/A",
       totalOrders,
       totalVisits,
       uniqueVisitors,
@@ -906,6 +1194,10 @@ const AdminPanel = () => {
       ? entries.map(([label, qty]) => `${label} (${qty})`).join(", ")
       : "—";
   };
+
+  /* ============================================================
+     CHARTS RENDERING
+  ============================================================ */
 
   const salesCanvasRef = useRef(null);
   const paymentCanvasRef = useRef(null);
@@ -1032,6 +1324,25 @@ const AdminPanel = () => {
       <div className="cursor-dot" ref={dotRef} />
       <div className="cursor-ring" ref={ringRef} />
 
+      {/* TOAST NOTIFICATION */}
+      {toast.message && (
+        <div
+          className={`admin-toast ${toast.type === "error" ? "toast-error" : "toast-success"}`}
+        >
+          <span>{toast.message}</span>
+          <button onClick={() => setToast({ message: "", type: "success" })}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* OFFLINE BANNER */}
+      {isOffline && (
+        <div className="admin-offline-banner">
+          ⚠️ Firestore is offline. Changes will sync once internet is restored.
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="admin-header">
         <div>
@@ -1104,28 +1415,95 @@ const AdminPanel = () => {
         {/* ==================== ORDERS TAB ==================== */}
         {activeTab === "orders" && (
           <div className="admin-panel-block">
-            {orders.length === 0 ? (
-              <p className="admin-empty">No orders yet.</p>
+            {/* Orders Filter & Search Toolbar */}
+            <div className="admin-toolbar-row">
+              <div className="admin-search-wrap">
+                <input
+                  type="text"
+                  placeholder="Search by ID, customer name, phone..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  className="admin-input"
+                />
+              </div>
+              <div className="admin-filter-wrap">
+                <select
+                  className="admin-select"
+                  value={orderStatusFilter}
+                  onChange={(e) => setOrderStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Delivery Statuses</option>
+                  {ORDER_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="date"
+                  className="admin-input admin-date-input"
+                  value={orderDateFilter}
+                  onChange={(e) => setOrderDateFilter(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  className="primary-btn admin-export-btn"
+                  onClick={handleExportOrders}
+                >
+                  <span>📥 Export CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {filteredOrders.length === 0 ? (
+              <p className="admin-empty">No orders found matching filters.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
+                      <th>Order ID & Date</th>
                       <th>Customer</th>
                       <th>Items</th>
                       <th>Amount</th>
-                      <th>Rewards Used</th>
+                      <th>Rewards</th>
                       <th>Payment</th>
-                      <th>Status</th>
-                      <th></th>
+                      <th>Delivery Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((order) => (
+                    {filteredOrders.map((order) => (
                       <tr key={order.id}>
+                        <td>
+                          <strong>#{order.id.slice(0, 8)}</strong>
+                          <div className="admin-subtext">
+                            {order.createdAt?.toDate
+                              ? order.createdAt.toDate().toLocaleString("en-IN")
+                              : "—"}
+                          </div>
+                          <button
+                            type="button"
+                            className="stock-edit-link"
+                            style={{
+                              marginTop: "4px",
+                              display: "inline-block",
+                            }}
+                            onClick={() => setSelectedOrder(order)}
+                          >
+                            Details Modal →
+                          </button>
+                        </td>
                         <td>
                           <strong>{order.customerName || "—"}</strong>
                           <div className="admin-subtext">{order.phone}</div>
+                          {order.address && (
+                            <div className="admin-subtext admin-address-sub">
+                              {order.address}
+                            </div>
+                          )}
                         </td>
                         <td>
                           {(order.items || []).map((i, idx) => {
@@ -1160,7 +1538,24 @@ const AdminPanel = () => {
                           )}
                           {!order.walletUsed && !order.tokenDiscount && "—"}
                         </td>
-                        <td>{order.paymentMethod}</td>
+                        <td>
+                          <div className="admin-subtext">
+                            {order.paymentMethod}
+                          </div>
+                          <select
+                            className="admin-select admin-select-sm"
+                            value={order.paymentStatus || "pending"}
+                            onChange={(e) =>
+                              updatePaymentStatus(order.id, e.target.value)
+                            }
+                          >
+                            {PAYMENT_STATUSES.map((ps) => (
+                              <option key={ps} value={ps}>
+                                {ps}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
                         <td>
                           <select
                             className="admin-select"
@@ -1175,14 +1570,36 @@ const AdminPanel = () => {
                               </option>
                             ))}
                           </select>
+                          {order.cancelReason && (
+                            <div className="admin-cancel-reason-tag">
+                              Reason: {order.cancelReason}
+                            </div>
+                          )}
                         </td>
                         <td>
-                          <button
-                            className="admin-delete-btn"
-                            onClick={() => deleteOrder(order.id)}
-                          >
-                            Delete
-                          </button>
+                          <div className="admin-action-btn-group">
+                            <button
+                              type="button"
+                              className="stock-btn"
+                              style={{ width: "auto", padding: "0 8px" }}
+                              onClick={() =>
+                                setCancelModal({
+                                  isOpen: true,
+                                  orderId: order.id,
+                                  reason: "",
+                                })
+                              }
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-delete-btn"
+                              onClick={() => deleteOrder(order.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1217,8 +1634,7 @@ const AdminPanel = () => {
             {menuItems.length === 0 && (
               <div className="admin-seed-box">
                 <p>
-                  Firestore's <code>menu</code> collection is empty. Your live
-                  menu is still hardcoded in <code>menuData.js</code>.
+                  Firestore's <code>menu</code> collection is empty.
                 </p>
                 <button
                   className="primary-btn"
@@ -1336,7 +1752,10 @@ const AdminPanel = () => {
                     }
                   />
                 </div>
-                <button type="submit" className="primary-btn admin-add-submit-btn">
+                <button
+                  type="submit"
+                  className="primary-btn admin-add-submit-btn"
+                >
                   <span>Add Item</span>
                 </button>
               </div>
@@ -1484,8 +1903,8 @@ const AdminPanel = () => {
                   Inventory <em>Control Center</em>
                 </h2>
                 <p className="inventory-description">
-                  Monitor stock levels, identify low-stock products and restock
-                  items before they run out.
+                  Monitor stock levels, calculate reorder quantities and restock
+                  supplies.
                 </p>
               </div>
 
@@ -1579,7 +1998,9 @@ const AdminPanel = () => {
                     return (
                       <div
                         key={item.id}
-                        className={`smart-alert-item ${isOut ? "alert-item-out" : "alert-item-low"}`}
+                        className={`smart-alert-item ${
+                          isOut ? "alert-item-out" : "alert-item-low"
+                        }`}
                       >
                         <div className="smart-alert-product">
                           {item.img ? (
@@ -1676,26 +2097,6 @@ const AdminPanel = () => {
                       </div>
                     );
                   })}
-                </div>
-
-                {lowStockAlerts.length > 8 && (
-                  <p className="smart-alert-more">
-                    +{lowStockAlerts.length - 8} more items require attention.
-                    Use the inventory table below to manage them.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {menuItems.length > 0 && lowStockAlerts.length === 0 && (
-              <div className="inventory-all-good">
-                <div className="inventory-all-good-icon">✓</div>
-                <div>
-                  <h3>Inventory is healthy</h3>
-                  <p>
-                    All menu items are currently above their low-stock
-                    thresholds.
-                  </p>
                 </div>
               </div>
             )}
@@ -1929,23 +2330,6 @@ const AdminPanel = () => {
                 </table>
               </div>
             )}
-
-            <div className="inventory-info-panel">
-              <div className="inventory-info-icon">💡</div>
-              <div>
-                <h4>How Smart Inventory works</h4>
-                <p>
-                  <strong>Out of Stock:</strong> stock is 0.{" "}
-                  <strong>Low Stock:</strong> stock is greater than 0 but at or
-                  below the alert threshold. <strong>Healthy:</strong> stock is
-                  above the alert threshold.
-                </p>
-                <p>
-                  The reorder suggestion is automatically calculated as at least
-                  3× the low-stock threshold, with a minimum target of 10 units.
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1978,32 +2362,50 @@ const AdminPanel = () => {
               </div>
             </div>
 
-            {users.length === 0 ? (
+            <div className="admin-toolbar-row" style={{ marginBottom: "1rem" }}>
+              <input
+                type="text"
+                placeholder="Search users by name, email, ID..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="admin-input"
+                style={{ maxWidth: "320px" }}
+              />
+            </div>
+
+            {filteredUsers.length === 0 ? (
               <p className="admin-empty">No users found.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
+                      <th>Name / Details</th>
                       <th>Email</th>
                       <th>Provider</th>
                       <th>Wallet</th>
                       <th>Tokens</th>
                       <th>Referrals</th>
-                      <th>Referred By</th>
                       <th>Role</th>
+                      <th>Status & Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => {
-                      const isDefaultAdmin = u.email?.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase();
+                    {filteredUsers.map((u) => {
+                      const isDefaultAdmin =
+                        u.email?.toLowerCase() ===
+                        DEFAULT_ADMIN_EMAIL.toLowerCase();
 
                       return (
                         <tr key={u.id}>
-                          <td>{u.name || "—"}</td>
+                          <td>
+                            <strong>{u.name || "—"}</strong>
+                            <div className="admin-subtext">
+                              ID: {shortUid(u.id)}
+                            </div>
+                          </td>
                           <td>{u.email}</td>
-                          <td>{u.provider}</td>
+                          <td>{u.provider || "password"}</td>
                           <td>
                             <button
                               className="admin-inline-input"
@@ -2024,14 +2426,18 @@ const AdminPanel = () => {
                               {u.tokens ?? 0}
                             </button>
                           </td>
-                          <td>{u.referralCount ?? 0}</td>
-                          <td className="admin-subtext">
-                            {shortUid(u.referredBy)}
+                          <td>
+                            <div>{u.referralCount ?? 0} referred</div>
+                            <div className="admin-subtext">
+                              By: {shortUid(u.referredBy)}
+                            </div>
                           </td>
                           <td>
                             <select
                               className="admin-select"
-                              value={isDefaultAdmin ? "admin" : (u.role || "customer")}
+                              value={
+                                isDefaultAdmin ? "admin" : u.role || "customer"
+                              }
                               disabled={isDefaultAdmin}
                               onChange={(e) =>
                                 updateUserRole(u.id, e.target.value)
@@ -2040,6 +2446,31 @@ const AdminPanel = () => {
                               <option value="customer">customer</option>
                               <option value="admin">admin</option>
                             </select>
+                          </td>
+                          <td>
+                            <div className="admin-action-btn-group">
+                              <button
+                                type="button"
+                                className="stock-btn"
+                                style={{
+                                  width: "auto",
+                                  padding: "0 8px",
+                                  backgroundColor: u.disabled
+                                    ? "#e57373"
+                                    : "#81c784",
+                                }}
+                                onClick={() => toggleUserDisabled(u)}
+                              >
+                                {u.disabled ? "Enable" : "Disable"}
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-delete-btn"
+                                onClick={() => deleteUser(u)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -2083,18 +2514,40 @@ const AdminPanel = () => {
               ))}
             </div>
 
-            {feedbackList.length === 0 ? (
-              <p className="admin-empty">No feedback submitted yet.</p>
+            {/* Feedback Search and Filter */}
+            <div className="admin-toolbar-row" style={{ marginTop: "1.5rem" }}>
+              <input
+                type="text"
+                placeholder="Search reviews or customers..."
+                value={feedbackSearch}
+                onChange={(e) => setFeedbackSearch(e.target.value)}
+                className="admin-input"
+                style={{ maxWidth: "300px" }}
+              />
+              <select
+                className="admin-select"
+                value={feedbackFilter}
+                onChange={(e) => setFeedbackFilter(e.target.value)}
+              >
+                <option value="all">All Feedback Statuses</option>
+                <option value="flagged">Flagged</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </div>
+
+            {filteredFeedbackList.length === 0 ? (
+              <p className="admin-empty">No feedback found.</p>
             ) : (
-              <div className="admin-table-wrap" style={{ marginTop: "1.5rem" }}>
+              <div className="admin-table-wrap" style={{ marginTop: "1rem" }}>
                 <table className="admin-table">
                   <thead>
                     <tr>
                       <th>Customer</th>
-                      <th>Items</th>
                       <th>Rating</th>
-                      <th>Comment</th>
+                      <th>Comment & Reply</th>
+                      <th>Status</th>
                       <th>Date</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2107,17 +2560,113 @@ const AdminPanel = () => {
                       >
                         <td>
                           <strong>{f.customerName || "—"}</strong>
+                          <div className="admin-subtext">
+                            {(f.items || []).join(", ")}
+                          </div>
                         </td>
-                        <td>{(f.items || []).join(", ") || "—"}</td>
                         <td className="admin-rating-cell">
                           {renderStars(f.rating)}
                         </td>
                         <td>
-                          {f.comment || (
-                            <span className="admin-subtext">No comment</span>
+                          <div>
+                            {f.comment || (
+                              <span className="admin-subtext">No comment</span>
+                            )}
+                          </div>
+                          {f.adminReply && (
+                            <div className="admin-reply-box">
+                              <strong>Reply:</strong> {f.adminReply}
+                            </div>
+                          )}
+
+                          {replyInput.feedbackId === f.id ? (
+                            <div className="admin-inline-reply-input">
+                              <input
+                                type="text"
+                                placeholder="Type response..."
+                                value={replyInput.text}
+                                onChange={(e) =>
+                                  setReplyInput({
+                                    ...replyInput,
+                                    text: e.target.value,
+                                  })
+                                }
+                              />
+                              <button
+                                type="button"
+                                className="primary-btn"
+                                style={{ padding: "4px 10px" }}
+                                onClick={() => handleSendFeedbackReply(f.id)}
+                              >
+                                Send
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost-btn"
+                                onClick={() =>
+                                  setReplyInput({ feedbackId: null, text: "" })
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="stock-edit-link"
+                              style={{
+                                marginTop: "4px",
+                                display: "inline-block",
+                              }}
+                              onClick={() =>
+                                setReplyInput({
+                                  feedbackId: f.id,
+                                  text: f.adminReply || "",
+                                })
+                              }
+                            >
+                              💬 {f.adminReply ? "Edit Reply" : "Reply"}
+                            </button>
                           )}
                         </td>
+                        <td>
+                          <span
+                            className={`inventory-badge ${
+                              f.status === "flagged"
+                                ? "inventory-badge-out"
+                                : f.status === "resolved"
+                                  ? "inventory-badge-healthy"
+                                  : "inventory-badge-low"
+                            }`}
+                          >
+                            {f.status || "active"}
+                          </span>
+                        </td>
                         <td>{formatFeedbackDate(f.createdAt)}</td>
+                        <td>
+                          <div className="admin-action-btn-group">
+                            <button
+                              type="button"
+                              className="stock-btn"
+                              style={{ width: "auto", padding: "0 6px" }}
+                              onClick={() =>
+                                updateFeedbackStatus(
+                                  f.id,
+                                  f.status === "flagged" ? "active" : "flagged",
+                                )
+                              }
+                            >
+                              {f.status === "flagged" ? "Unflag" : "Flag"}
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-delete-btn"
+                              onClick={() => deleteFeedback(f.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2149,38 +2698,34 @@ const AdminPanel = () => {
               <div className="admin-stat-card">
                 <p className="admin-stat-label">Total Revenue</p>
                 <h3 className="admin-stat-value">₹{analytics.totalRevenue}</h3>
-                <p className="admin-stat-sub">Sum of all order amounts</p>
+                <p className="admin-stat-sub">
+                  Today: ₹{analytics.todayRevenue}
+                </p>
               </div>
             </div>
 
             <div className="admin-stats-row" style={{ marginTop: "1rem" }}>
               <div className="admin-stat-card">
-                <p className="admin-stat-label">Customized Items Sold</p>
-                <h3 className="admin-stat-value">
-                  {customizationStats.customizedQty}
-                </h3>
-                <p className="admin-stat-sub">Ordered via Customize page</p>
+                <p className="admin-stat-label">Avg Order Value</p>
+                <h3 className="admin-stat-value">₹{analytics.avgOrderValue}</h3>
+                <p className="admin-stat-sub">Revenue per order</p>
               </div>
               <div className="admin-stat-card">
-                <p className="admin-stat-label">Standard Items Sold</p>
-                <h3 className="admin-stat-value">
-                  {customizationStats.plainQty}
-                </h3>
-                <p className="admin-stat-sub">Ordered via plain Add to Cart</p>
+                <p className="admin-stat-label">Cancellation Rate</p>
+                <h3 className="admin-stat-value">{analytics.cancelRate}%</h3>
+                <p className="admin-stat-sub">Cancelled orders</p>
               </div>
               <div className="admin-stat-card">
-                <p className="admin-stat-label">Extra Straw Requests</p>
-                <h3 className="admin-stat-value">
-                  {customizationStats.strawQty}
-                </h3>
-                <p className="admin-stat-sub">Among customized items</p>
+                <p className="admin-stat-label">Peak Ordering Hour</p>
+                <h3 className="admin-stat-value">{analytics.peakHour}</h3>
+                <p className="admin-stat-sub">Busiest window</p>
               </div>
             </div>
 
             <div className="admin-charts-grid">
               <div className="admin-chart-card">
                 <h4>Best Selling Coffee</h4>
-                <p>Top items by quantity sold, from all orders.</p>
+                <p>Top items by quantity sold.</p>
                 <div className="admin-chart-wrap">
                   <canvas ref={salesCanvasRef} />
                 </div>
@@ -2188,7 +2733,7 @@ const AdminPanel = () => {
 
               <div className="admin-chart-card">
                 <h4>Payment Method Split</h4>
-                <p>Revenue share by payment method.</p>
+                <p>Revenue share by method.</p>
                 <div className="admin-chart-wrap">
                   <canvas ref={paymentCanvasRef} />
                 </div>
@@ -2196,7 +2741,7 @@ const AdminPanel = () => {
 
               <div className="admin-chart-card admin-chart-wide">
                 <h4>Visits Over Time</h4>
-                <p>Page views per day, based on real visit logs.</p>
+                <p>Daily page views.</p>
                 <div className="admin-chart-wrap">
                   <canvas ref={visitsCanvasRef} />
                 </div>
@@ -2227,50 +2772,169 @@ const AdminPanel = () => {
                 </tbody>
               </table>
             </div>
-
-            <div className="admin-table-wrap" style={{ marginTop: "1.5rem" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Customization Type</th>
-                    <th>Top Choices</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customizationStats.customizedQty === 0 ? (
-                    <tr>
-                      <td colSpan="2">No customized orders yet.</td>
-                    </tr>
-                  ) : (
-                    <>
-                      <tr>
-                        <td>Size</td>
-                        <td>{formatTopList(customizationStats.topSizes)}</td>
-                      </tr>
-                      <tr>
-                        <td>Milk</td>
-                        <td>{formatTopList(customizationStats.topMilk)}</td>
-                      </tr>
-                      <tr>
-                        <td>Shot Strength</td>
-                        <td>{formatTopList(customizationStats.topShot)}</td>
-                      </tr>
-                      <tr>
-                        <td>Sugar Level</td>
-                        <td>{formatTopList(customizationStats.topSugar)}</td>
-                      </tr>
-                      <tr>
-                        <td>Roast</td>
-                        <td>{formatTopList(customizationStats.topRoast)}</td>
-                      </tr>
-                    </>
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         )}
       </main>
+
+      {/* ================= MODAL: ORDER DETAILS ================= */}
+      {selectedOrder && (
+        <div className="admin-modal-backdrop">
+          <div className="admin-modal-box">
+            <div className="admin-modal-header">
+              <h3>Order Details #{selectedOrder.id}</h3>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="admin-modal-close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-modal-row">
+                <span className="admin-modal-label">Customer Name:</span>
+                <span>{selectedOrder.customerName || "—"}</span>
+              </div>
+              <div className="admin-modal-row">
+                <span className="admin-modal-label">Phone / Email:</span>
+                <span>{selectedOrder.phone || selectedOrder.email || "—"}</span>
+              </div>
+              <div className="admin-modal-row">
+                <span className="admin-modal-label">Address:</span>
+                <span>{selectedOrder.address || "Dine-in / Pickup"}</span>
+              </div>
+              <div className="admin-modal-row">
+                <span className="admin-modal-label">
+                  Payment Method / Status:
+                </span>
+                <span>
+                  {selectedOrder.paymentMethod} (
+                  {selectedOrder.paymentStatus || "pending"})
+                </span>
+              </div>
+
+              <h4
+                style={{
+                  marginTop: "1rem",
+                  borderBottom: "1px solid #332619",
+                  paddingBottom: "4px",
+                }}
+              >
+                Order Items
+              </h4>
+              <div className="admin-modal-items-list">
+                {(selectedOrder.items || []).map((item, idx) => (
+                  <div key={idx} className="admin-modal-item-entry">
+                    <span>
+                      {item.name} × {item.qty}
+                    </span>
+                    <strong>
+                      ₹{Number(item.price || 0) * Number(item.qty || 1)}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                className="primary-btn"
+                onClick={() => setSelectedOrder(null)}
+              >
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: CANCEL REASON ================= */}
+      {cancelModal.isOpen && (
+        <div className="admin-modal-backdrop">
+          <div className="admin-modal-box">
+            <div className="admin-modal-header">
+              <h3>Cancel Order</h3>
+              <button
+                onClick={() =>
+                  setCancelModal({ isOpen: false, orderId: null, reason: "" })
+                }
+                className="admin-modal-close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <p className="admin-subtext" style={{ marginBottom: "8px" }}>
+                Please specify why this order is being cancelled:
+              </p>
+              <textarea
+                className="admin-textarea"
+                rows={3}
+                placeholder="e.g. Out of stock, customer requested cancellation..."
+                value={cancelModal.reason}
+                onChange={(e) =>
+                  setCancelModal({ ...cancelModal, reason: e.target.value })
+                }
+              />
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                className="ghost-btn"
+                onClick={() =>
+                  setCancelModal({ isOpen: false, orderId: null, reason: "" })
+                }
+              >
+                Back
+              </button>
+              <button className="primary-btn" onClick={confirmCancelOrder}>
+                <span>Confirm Cancel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= GENERIC CONFIRM MODAL ================= */}
+      {confirmModal.isOpen && (
+        <div className="admin-modal-backdrop">
+          <div className="admin-modal-box">
+            <div className="admin-modal-header">
+              <h3>{confirmModal.title}</h3>
+              <button
+                onClick={() =>
+                  setConfirmModal({ ...confirmModal, isOpen: false })
+                }
+                className="admin-modal-close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <p>{confirmModal.message}</p>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                className="ghost-btn"
+                onClick={() =>
+                  setConfirmModal({ ...confirmModal, isOpen: false })
+                }
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-btn"
+                style={{
+                  backgroundColor: confirmModal.isDanger ? "#d32f2f" : "",
+                }}
+                onClick={() => {
+                  confirmModal.action?.();
+                  setConfirmModal({ ...confirmModal, isOpen: false });
+                }}
+              >
+                <span>Confirm</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
