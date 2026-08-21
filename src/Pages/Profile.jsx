@@ -12,7 +12,6 @@ import {
   serverTimestamp,
   query,
   where,
-  getDocs,
   onSnapshot,
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -110,14 +109,15 @@ const Profile = () => {
     }
   }, [authLoading, user, navigate]);
 
+  // Real-time Profile & Global Announcements Listener
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
 
-    const loadProfile = async () => {
-      setLoading(true);
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid));
+    setLoading(true);
+    const userDocRef = doc(db, "users", user.uid);
+    const unsubUser = onSnapshot(
+      userDocRef,
+      (snap) => {
         if (snap.exists()) {
           const data = snap.data();
           const loaded = {
@@ -129,18 +129,17 @@ const Profile = () => {
             email: data.email || user.email || "",
             photoURL: data.photoURL || user.photoURL || "",
             role: data.role || "user",
-            adminMessage: data.adminMessage || data.adminNote || "",
+            adminMessage:
+              data.adminMessage || data.adminNote || data.message || "",
           };
-          if (!cancelled) {
-            setProfile(loaded);
-            setDraft(loaded);
-            setRewards({
-              wallet: typeof data.wallet === "number" ? data.wallet : 0,
-              tokens: typeof data.tokens === "number" ? data.tokens : 0,
-              referralCount:
-                typeof data.referralCount === "number" ? data.referralCount : 0,
-            });
-          }
+          setProfile(loaded);
+          setDraft(loaded);
+          setRewards({
+            wallet: typeof data.wallet === "number" ? data.wallet : 0,
+            tokens: typeof data.tokens === "number" ? data.tokens : 0,
+            referralCount:
+              typeof data.referralCount === "number" ? data.referralCount : 0,
+          });
         } else {
           const fallback = {
             ...emptyProfile,
@@ -148,22 +147,18 @@ const Profile = () => {
             email: user.email || "",
             photoURL: user.photoURL || "",
           };
-          if (!cancelled) {
-            setProfile(fallback);
-            setDraft(fallback);
-            setRewards(emptyRewards);
-          }
+          setProfile(fallback);
+          setDraft(fallback);
+          setRewards(emptyRewards);
         }
-      } catch (err) {
-        console.error("Profile load failed:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Profile snapshot error:", err);
+        setLoading(false);
+      },
+    );
 
-    loadProfile();
-
-    // Listen to real-time global admin announcements
     const unsubGlobal = onSnapshot(
       doc(db, "system_settings", "announcements"),
       (docSnap) => {
@@ -175,12 +170,12 @@ const Profile = () => {
     );
 
     return () => {
-      cancelled = true;
+      unsubUser();
       unsubGlobal();
     };
   }, [user]);
 
-  // Real-time Orders Listener (Live updates if Admin updates order status or adminNote)
+  // Real-time Orders Listener
   useEffect(() => {
     if (!user) return;
 
@@ -205,7 +200,7 @@ const Profile = () => {
         setOrdersLoading(false);
       },
       (err) => {
-        console.error("Orders snapshot failed:", err);
+        console.error("Orders snapshot error:", err);
         setOrdersLoading(false);
       },
     );
@@ -459,7 +454,7 @@ const Profile = () => {
       <div className="cursor-dot" ref={dotRef} />
       <div className="cursor-ring" ref={ringRef} />
       <div className="container profile-container">
-        {/* ── Top Admin Notice Banner (Global or User specific) ── */}
+        {/* ── Top Admin Announcement Banner ── */}
         {activeAdminMessage && (
           <div className="admin-message-banner fade-in">
             <div className="admin-msg-icon">📢</div>
@@ -736,11 +731,17 @@ const Profile = () => {
                 const contact = getOrderContact(order);
                 const status = (order.status || "placed").toLowerCase();
                 const canRate = status === "completed" && !order.feedbackGiven;
+
+                // Support for all possible admin message field keys in Firestore
                 const orderAdminMsg =
-                  order.adminNote ||
                   order.adminMessage ||
+                  order.adminNote ||
+                  order.adminMsg ||
+                  order.message ||
+                  order.note ||
+                  order.reply ||
                   order.adminResponse ||
-                  order.reply;
+                  order.customMessage;
 
                 return (
                   <li
@@ -760,12 +761,13 @@ const Profile = () => {
                       </span>
                     </div>
 
-                    {/* ── SPECIFIC ORDER ADMIN MESSAGE / NOTE ── */}
+                    {/* ── Live Admin Message inside Order Card ── */}
                     {orderAdminMsg && (
                       <div className="order-admin-note-box">
                         <div className="order-admin-note-header">
-                          <span className="note-badge">Admin Note</span>
-                          <span className="note-icon">💬</span>
+                          <span className="note-badge">
+                            💬 Message from Admin
+                          </span>
                         </div>
                         <p className="order-admin-note-text">{orderAdminMsg}</p>
                       </div>
