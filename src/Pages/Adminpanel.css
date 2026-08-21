@@ -2010,3 +2010,19 @@
   height: 42px;
   align-self: flex-end;
 }
+
+/* ── Category dropdown: custom input mode (Add New Item form) ── */
+.admin-category-custom-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-category-custom-wrap input {
+  width: 100%;
+}
+
+.admin-category-custom-wrap .stock-edit-link {
+  margin-top: 0;
+  align-self: flex-start;
+}

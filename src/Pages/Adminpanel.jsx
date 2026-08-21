@@ -49,6 +49,29 @@ const ORDER_STATUSES = [
 const LIST_LIMIT = 500;
 const BATCH_CHUNK_SIZE = 450;
 
+// Fixed category list for the Add New Item form.
+// "Custom" is always the last option — picking it switches to a free text input.
+const CATEGORY_OPTIONS = [
+  "Classic Espresso",
+  "Espresso + Milk",
+  "Iced & Chilled",
+  "Cold Brew",
+  "Regional Favourites",
+  "Signature Blends",
+  "Flavoured Coffee",
+  "House Specials",
+  "Seasonal Specials",
+  "Single Origin",
+  "Pour Over",
+  "Manual Brew",
+  "Decaf",
+  "Plant-Based",
+  "Alternatives",
+  "Coffee Cocktails",
+];
+
+const CUSTOM_CATEGORY_VALUE = "__custom__";
+
 /* ============================================================
    HELPERS
 ============================================================ */
@@ -160,6 +183,9 @@ const AdminPanel = () => {
     stock: "0",
     lowStockAt: "5",
   });
+
+  // Controls whether the Category field shows the fixed dropdown or a free text input.
+  const [categoryMode, setCategoryMode] = useState("select"); // "select" | "custom"
 
   const [inventorySearch, setInventorySearch] = useState("");
   const [inventoryFilter, setInventoryFilter] = useState("all");
@@ -402,11 +428,29 @@ const AdminPanel = () => {
         stock: "0",
         lowStockAt: "5",
       });
+      setCategoryMode("select");
       alert("Menu item added successfully.");
     } catch (err) {
       console.error("Failed to add menu item:", err);
       alert("Could not add menu item.");
     }
+  };
+
+  // Handles the Category <select> in the Add New Item form.
+  // Picking "Custom" (always the last option) switches to a free text input.
+  const handleCategorySelectChange = (e) => {
+    const value = e.target.value;
+    if (value === CUSTOM_CATEGORY_VALUE) {
+      setCategoryMode("custom");
+      setNewItem({ ...newItem, category: "" });
+    } else {
+      setNewItem({ ...newItem, category: value });
+    }
+  };
+
+  const handleBackToCategoryList = () => {
+    setCategoryMode("select");
+    setNewItem({ ...newItem, category: "" });
   };
 
   const updateMenuItem = async (id, field, value) => {
@@ -1203,16 +1247,46 @@ const AdminPanel = () => {
                     }
                   />
                 </div>
+
                 <div className="admin-input-group">
                   <label className="admin-input-label">Category</label>
-                  <input
-                    placeholder="e.g. Hot Coffee"
-                    value={newItem.category}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, category: e.target.value })
-                    }
-                  />
+                  {categoryMode === "select" ? (
+                    <select
+                      className="admin-select"
+                      value={newItem.category}
+                      onChange={handleCategorySelectChange}
+                    >
+                      <option value="" disabled>
+                        Select category
+                      </option>
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_CATEGORY_VALUE}>Custom…</option>
+                    </select>
+                  ) : (
+                    <div className="admin-category-custom-wrap">
+                      <input
+                        placeholder="Type custom category"
+                        value={newItem.category}
+                        onChange={(e) =>
+                          setNewItem({ ...newItem, category: e.target.value })
+                        }
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="stock-edit-link"
+                        onClick={handleBackToCategoryList}
+                      >
+                        ← Back to list
+                      </button>
+                    </div>
+                  )}
                 </div>
+
                 <div className="admin-input-group">
                   <label className="admin-input-label">Price (₹)</label>
                   <input
